@@ -12,6 +12,7 @@ app.use(express.json())
 init()
 
 // Rutas
+app.use('/api/usuarios',      require('./routes/usuarios.routes'))
 app.use('/api/configuracion', require('./routes/configuracion.routes'))
 app.use('/api/categorias',    require('./routes/categorias.routes'))
 //"Cualquier petición que empiece con /api/categorias (como GET, POST, DELETE), mándala al archivo de rutas de categorías"
