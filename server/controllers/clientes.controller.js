@@ -1,4 +1,5 @@
 const { db } = require('../db')
+const { ahora } = require('../utils/fecha')
 
 const getAll = (req, res) => {
   try {
@@ -40,9 +41,9 @@ const create = (req, res) => {
 
   try {
     const result = db.prepare(`
-      INSERT INTO clientes (nombre, ruc_ci, telefono, email)
-      VALUES (?, ?, ?, ?)
-    `).run(nombre.trim(), ruc_ci || null, telefono || null, email || null)
+      INSERT INTO clientes (nombre, ruc_ci, telefono, email, creado_en)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(nombre.trim(), ruc_ci || null, telefono || null, email || null, ahora())
     res.status(201).json({ id: result.lastInsertRowid, ...req.body })
   } catch (err) {
     res.status(500).json({ error: err.message })

@@ -1,4 +1,5 @@
 const { db } = require('../db')
+const { ahora } = require('../utils/fecha')
 
 const getAll = (req, res) => {
   try {
@@ -24,7 +25,7 @@ const create = (req, res) => {
   if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio' })
 
   try {
-    const result = db.prepare('INSERT INTO categorias (nombre) VALUES (?)').run(nombre.trim())
+    const result = db.prepare('INSERT INTO categorias (nombre, creado_en) VALUES (?, ?)').run(nombre.trim(), ahora())
     res.status(201).json({ id: result.lastInsertRowid, nombre: nombre.trim() })
   } catch (err) {
     if (err.message.includes('UNIQUE')) {

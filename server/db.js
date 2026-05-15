@@ -31,7 +31,7 @@ const init = () => {
       password_hash TEXT NOT NULL,
       rol TEXT CHECK(rol IN ('admin', 'cajero')) DEFAULT 'cajero',
       activo INTEGER DEFAULT 1,
-      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
+      creado_en DATETIME DEFAULT (datetime('now', 'localtime'))
     );
 
     CREATE TABLE IF NOT EXISTS categorias (
@@ -50,7 +50,7 @@ const init = () => {
       categoria_id INTEGER REFERENCES categorias(id),
       tasa_iva INTEGER CHECK(tasa_iva IN (0, 5, 10)) DEFAULT 10,
       activo INTEGER DEFAULT 1,
-      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
+      creado_en DATETIME DEFAULT (datetime('now', 'localtime'))
     );
 
     CREATE TABLE IF NOT EXISTS clientes (
@@ -60,7 +60,7 @@ const init = () => {
       telefono TEXT,
       email TEXT,
       deuda_total REAL DEFAULT 0,
-      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
+      creado_en DATETIME DEFAULT (datetime('now', 'localtime'))
     );
 
     CREATE TABLE IF NOT EXISTS proveedores (
@@ -70,7 +70,7 @@ const init = () => {
       telefono TEXT,
       email TEXT,
       activo INTEGER DEFAULT 1,
-      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
+      creado_en DATETIME DEFAULT (datetime('now', 'localtime'))
     );
 
     CREATE TABLE IF NOT EXISTS ventas (
@@ -92,7 +92,7 @@ const init = () => {
       vuelto REAL DEFAULT 0,
       orden_nro TEXT,
       estado TEXT CHECK(estado IN ('completada', 'anulada')) DEFAULT 'completada',
-      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
+      creado_en DATETIME DEFAULT (datetime('now', 'localtime'))
     );
 
     CREATE TABLE IF NOT EXISTS detalle_venta (
@@ -118,7 +118,7 @@ const init = () => {
       iva_5 REAL DEFAULT 0,
       total REAL NOT NULL,
       estado TEXT CHECK(estado IN ('recibida', 'anulada')) DEFAULT 'recibida',
-      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
+      creado_en DATETIME DEFAULT (datetime('now', 'localtime'))
     );
 
     CREATE TABLE IF NOT EXISTS detalle_compra (
@@ -141,7 +141,7 @@ const init = () => {
       referencia_tipo TEXT CHECK(referencia_tipo IN ('venta', 'compra', 'manual')),
       referencia_id INTEGER,
       motivo TEXT,
-      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
+      creado_en DATETIME DEFAULT (datetime('now', 'localtime'))
     );
 
     CREATE TABLE IF NOT EXISTS caja (
@@ -149,7 +149,7 @@ const init = () => {
       usuario_id INTEGER REFERENCES usuarios(id),
       monto_inicial REAL NOT NULL,
       monto_final REAL,
-      abierta_en DATETIME DEFAULT CURRENT_TIMESTAMP,
+      abierta_en DATETIME DEFAULT (datetime('now', 'localtime')),
       cerrada_en DATETIME,
       estado TEXT CHECK(estado IN ('abierta', 'cerrada')) DEFAULT 'abierta'
     );

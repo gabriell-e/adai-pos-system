@@ -1,6 +1,7 @@
 const { db } = require('../db')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const { ahora } = require('../utils/fecha')
 
 const JWT_SECRET = process.env.JWT_SECRET || 'adai_secret_dev'
 
@@ -76,9 +77,9 @@ const create = (req, res) => {
   try {
     const password_hash = bcrypt.hashSync(password, 10)
     const result = db.prepare(`
-      INSERT INTO usuarios (nombre, email, password_hash, rol)
-      VALUES (?, ?, ?, ?)
-    `).run(nombre.trim(), email.trim(), password_hash, rol || 'cajero')
+      INSERT INTO usuarios (nombre, email, password_hash, rol, creado_en)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(nombre.trim(), email.trim(), password_hash, rol || 'cajero', ahora())
 
     res.status(201).json({
       id:     result.lastInsertRowid,

@@ -1,4 +1,5 @@
 const { db } = require('../db')
+const { ahora } = require('../utils/fecha')
 
 const getAll = (req, res) => {
   try {
@@ -71,8 +72,8 @@ const create = (req, res) => {
   try {
     const result = db.prepare(`
       INSERT INTO productos
-        (nombre, codigo_barras, precio_compra, precio_venta, stock, stock_minimo, categoria_id, tasa_iva)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (nombre, codigo_barras, precio_compra, precio_venta, stock, stock_minimo, categoria_id, tasa_iva, creado_en)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       nombre.trim(),
       codigo_barras || null,
@@ -81,7 +82,8 @@ const create = (req, res) => {
       stock || 0,
       stock_minimo || 5,
       categoria_id || null,
-      tasa_iva ?? 10
+      tasa_iva ?? 10,
+      ahora()
     )
     res.status(201).json({ id: result.lastInsertRowid, ...req.body })
   } catch (err) {

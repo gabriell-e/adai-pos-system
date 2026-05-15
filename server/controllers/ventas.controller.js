@@ -1,4 +1,5 @@
 const { db } = require('../db')
+const { ahora } = require('../utils/fecha')
 
 // Extrae IVA incluido en el precio (Paraguay)
 const calcularIVA = (subtotal, tasa) => {
@@ -157,8 +158,8 @@ const crear = (req, res) => {
           numero_factura, timbrado_id, cliente_id, usuario_id,
           condicion_venta, tipo_pago,
           subtotal_gravado_10, subtotal_gravado_5, subtotal_exento,
-          iva_10, iva_5, descuento, total, monto_pagado, vuelto, orden_nro
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          iva_10, iva_5, descuento, total, monto_pagado, vuelto, orden_nro, creado_en
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         numero_factura,
         config?.id  || null,
@@ -175,7 +176,8 @@ const crear = (req, res) => {
         total,
         monto_pagado || 0,
         vuelto,
-        orden_nro || null
+        orden_nro || null,
+        ahora()
       )
 
       const venta_id = ventaResult.lastInsertRowid
@@ -189,8 +191,8 @@ const crear = (req, res) => {
       const stmtStock      = db.prepare('UPDATE productos SET stock = stock - ? WHERE id = ?')
       const stmtMovimiento = db.prepare(`
         INSERT INTO movimientos_stock
-          (producto_id, usuario_id, tipo, cantidad, referencia_tipo, referencia_id, motivo)
-        VALUES (?, ?, 'salida', ?, 'venta', ?, 'Venta registrada')
+          (producto_id, usuario_id, tipo, cantidad, referencia_tipo, referencia_id, motivo, creado_en)
+        VALUES (?, ?, 'salida', ?, 'venta', ?, 'Venta registrada', ?)
       `)
 
       for (const item of itemsCalculados) {
@@ -199,7 +201,7 @@ const crear = (req, res) => {
           item.precio_unitario, item.tasa_iva, item.monto_iva, item.subtotal
         )
         stmtStock.run(item.cantidad, item.producto_id)
-        stmtMovimiento.run(item.producto_id, usuario_id, item.cantidad, venta_id)
+        stmtMovimiento.run(item.producto_id, usuario_id, item.cantidad, venta_id, ahora())
       }
 
       // 6. Si es fiado, actualizar deuda del cliente
@@ -233,13 +235,13 @@ const anular = (req, res) => {
       const stmtStock      = db.prepare('UPDATE productos SET stock = stock + ? WHERE id = ?')
       const stmtMovimiento = db.prepare(`
         INSERT INTO movimientos_stock
-          (producto_id, usuario_id, tipo, cantidad, referencia_tipo, referencia_id, motivo)
-        VALUES (?, ?, 'entrada', ?, 'venta', ?, 'Anulación de venta')
+          (producto_id, usuario_id, tipo, cantidad, referencia_tipo, referencia_id, motivo, creado_en)
+        VALUES (?, ?, 'entrada', ?, 'venta', ?, 'Anulación de venta', ?)
       `)
 
       for (const item of detalle) {
         stmtStock.run(item.cantidad, item.producto_id)
-        stmtMovimiento.run(item.producto_id, venta.usuario_id, item.cantidad, venta.id)
+        stmtMovimiento.run(item.producto_id, venta.usuario_id, item.cantidad, venta.id, ahora())
       }
 
       // Si era fiada, revertir deuda
