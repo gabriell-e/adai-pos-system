@@ -97,7 +97,7 @@ const create = (req, res) => {
 const update = (req, res) => {
   const {
     nombre, codigo_barras, precio_compra, precio_venta,
-    stock_minimo, categoria_id, tasa_iva
+    stock, stock_minimo, categoria_id, tasa_iva
   } = req.body
 
   if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio' })
@@ -107,13 +107,14 @@ const update = (req, res) => {
     const result = db.prepare(`
       UPDATE productos SET
         nombre = ?, codigo_barras = ?, precio_compra = ?,
-        precio_venta = ?, stock_minimo = ?, categoria_id = ?, tasa_iva = ?
+        precio_venta = ?, stock = ?, stock_minimo = ?, categoria_id = ?, tasa_iva = ?
       WHERE id = ?
     `).run(
       nombre.trim(),
       codigo_barras || null,
       precio_compra || 0,
       precio_venta,
+      stock ?? 0,
       stock_minimo || 5,
       categoria_id || null,
       tasa_iva ?? 10,
@@ -122,9 +123,8 @@ const update = (req, res) => {
     if (result.changes === 0) return res.status(404).json({ error: 'Producto no encontrado' })
     res.json({ id: Number(req.params.id), ...req.body })
   } catch (err) {
-    if (err.message.includes('UNIQUE')) {
+    if (err.message.includes('UNIQUE'))
       return res.status(409).json({ error: 'Ya existe un producto con ese código de barras' })
-    }
     res.status(500).json({ error: err.message })
   }
 }
@@ -140,4 +140,14 @@ const remove = (req, res) => {
   }
 }
 
-module.exports = { getAll, getById, getByCodigoBarras, getLowStock, create, update, remove }
+const activar = (req, res) => {
+  try {
+    const result = db.prepare('UPDATE productos SET activo = 1 WHERE id = ?').run(req.params.id)
+    if (result.changes === 0) return res.status(404).json({ error: 'Producto no encontrado' })
+    res.json({ mensaje: 'Producto activado' })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+}
+
+module.exports = { getAll, getById, getByCodigoBarras, getLowStock, create, update, remove, activar }
