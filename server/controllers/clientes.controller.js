@@ -37,8 +37,10 @@ const getHistorial = (req, res) => {
 
 const create = (req, res) => {
   const { nombre, ruc_ci, telefono, email } = req.body
-  if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio' })
-
+    if (!nombre?.trim())       return res.status(400).json({ error: 'El nombre es obligatorio' })
+    if (nombre.length > 100)   return res.status(400).json({ error: 'Nombre demasiado largo' })
+    if (telefono?.length > 20) return res.status(400).json({ error: 'Teléfono inválido' })
+    if (ruc_ci?.length > 20)   return res.status(400).json({ error: 'RUC/CI inválido' })
   try {
     const result = db.prepare(`
       INSERT INTO clientes (nombre, ruc_ci, telefono, email, creado_en)

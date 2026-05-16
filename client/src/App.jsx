@@ -4,6 +4,7 @@ import PrivateRoute from './components/PrivateRoute'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Productos from './pages/productos/Productos'
+import Clientes from './pages/clientes/Clientes'
 
 // Placeholder para páginas que vamos a construir
 const Pronto = ({ nombre }) => (
@@ -30,7 +31,7 @@ const App = () => (
                 <Route path="/ventas/nueva"  element={<Pronto nombre="Nueva Venta" />} />
                 <Route path="/compras"       element={<Pronto nombre="Compras" />} />
                 <Route path="/productos" element={<Productos />} />
-                <Route path="/clientes"      element={<Pronto nombre="Clientes" />} />
+                <Route path="/clientes" element={<Clientes />} />
                 <Route path="/proveedores"   element={<Pronto nombre="Proveedores" />} />
                 <Route path="/caja"          element={<Pronto nombre="Caja" />} />
                 <Route path="/configuracion" element={<Pronto nombre="Configuración" />} />
