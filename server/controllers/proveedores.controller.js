@@ -3,7 +3,7 @@ const { ahora } = require('../utils/fecha')
 
 const getAll = (req, res) => {
   try {
-    const proveedores = db.prepare('SELECT * FROM proveedores WHERE activo = 1 ORDER BY nombre').all()
+    const proveedores = db.prepare('SELECT * FROM proveedores ORDER BY activo DESC, nombre').all()
     res.json(proveedores)
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -79,4 +79,14 @@ const remove = (req, res) => {
   }
 }
 
-module.exports = { getAll, getById, getHistorial, create, update, remove }
+const activar = (req, res) => {
+  try {
+    const result = db.prepare('UPDATE proveedores SET activo = 1 WHERE id = ?').run(req.params.id)
+    if (result.changes === 0) return res.status(404).json({ error: 'Proveedor no encontrado' })
+    res.json({ mensaje: 'Proveedor activado' })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+}
+
+module.exports = { getAll, getById, getHistorial, create, update, remove, activar }

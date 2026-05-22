@@ -7,5 +7,6 @@ router.get('/:id/historial', ctrl.getHistorial)
 router.post('/',             ctrl.create)
 router.put('/:id',           ctrl.update)
 router.delete('/:id',        ctrl.remove)
+router.patch('/:id/activar', ctrl.activar)
 
 module.exports = router

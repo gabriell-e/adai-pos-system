@@ -6,6 +6,8 @@ import Login from './pages/Login'
 import Productos from './pages/productos/Productos'
 import Clientes from './pages/clientes/Clientes'
 import Proveedores from './pages/proveedores/Proveedores'
+import NuevaVenta   from './pages/ventas/NuevaVenta'
+import DetalleVenta from './pages/ventas/DetalleVenta'
 
 // Placeholder para páginas que vamos a construir
 const Pronto = ({ nombre }) => (
@@ -29,7 +31,8 @@ const App = () => (
               <Routes>
                 <Route path="/"              element={<Pronto nombre="Dashboard" />} />
                 <Route path="/ventas"        element={<Pronto nombre="Ventas" />} />
-                <Route path="/ventas/nueva"  element={<Pronto nombre="Nueva Venta" />} />
+                <Route path="/ventas/nueva"  element={<NuevaVenta />} />
+                <Route path="/ventas/:id"    element={<DetalleVenta />} />
                 <Route path="/compras"       element={<Pronto nombre="Compras" />} />
                 <Route path="/productos" element={<Productos />} />
                 <Route path="/clientes" element={<Clientes />} />
