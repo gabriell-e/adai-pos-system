@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import api from '../../api/axios'
+import { useAuth } from '../../context/AuthContext'
 
 const formatGs = n => `Gs. ${Number(n).toLocaleString('es-PY')}`
 
 const DetalleVenta = () => {
   const { id }    = useParams()
   const navigate  = useNavigate()
+  const { usuario } = useAuth()
+  const esAdmin = usuario?.rol === 'admin'
   const [venta, setVenta]     = useState(null)
   const [cargando, setCargando] = useState(true)
 
@@ -24,6 +27,16 @@ const DetalleVenta = () => {
       setVenta(prev => ({ ...prev, estado: 'anulada' }))
     } catch (err) {
       alert(err.response?.data?.error || 'Error al anular')
+    }
+  }
+
+  const cobrarFiado = async () => {
+    if (!confirm('¿Marcar esta venta fiada como cobrada?')) return
+    try {
+      await api.patch(`/ventas/${id}/cobrar`)
+      setVenta(prev => ({ ...prev, fiado_pagada: 1, cobrado_en: new Date().toISOString() }))
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error al cobrar')
     }
   }
 
@@ -64,12 +77,22 @@ const DetalleVenta = () => {
             Nueva venta
           </Link>
           {venta.estado === 'completada' && (
-            <button
-              onClick={anular}
-              className="border border-red-300 text-red-600 hover:bg-red-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-            >
-              Anular
-            </button>
+            <>
+              {esAdmin && venta.tipo_pago === 'fiado' && !venta.fiado_pagada && (
+                <button
+                  onClick={cobrarFiado}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Cobrar fiado
+                </button>
+              )}
+              <button
+                onClick={anular}
+                className="border border-red-300 text-red-600 hover:bg-red-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                Anular
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -87,7 +110,14 @@ const DetalleVenta = () => {
         </div>
         <div>
           <p className="text-gray-500">Tipo de pago</p>
-          <p className="font-medium text-gray-800 capitalize">{venta.tipo_pago}</p>
+          <p className="font-medium text-gray-800 capitalize">
+            {venta.tipo_pago}
+            {venta.tipo_pago === 'fiado' && (
+              <span className={`ml-2 inline-block px-2 py-0.5 rounded-full text-xs font-medium ${venta.fiado_pagada ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                {venta.fiado_pagada ? 'Pagado' : 'Pendiente'}
+              </span>
+            )}
+          </p>
         </div>
         <div>
           <p className="text-gray-500">Condición</p>

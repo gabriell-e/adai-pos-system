@@ -93,6 +93,8 @@ const init = () => {
       vuelto REAL DEFAULT 0,
       orden_nro TEXT,
       estado TEXT CHECK(estado IN ('completada', 'anulada')) DEFAULT 'completada',
+      fiado_pagada INTEGER DEFAULT 0,
+      cobrado_en DATETIME,
       creado_en DATETIME DEFAULT (datetime('now', 'localtime'))
     );
 
@@ -161,6 +163,8 @@ const init = () => {
   // Migraciones para bases de datos existentes
   try { db.exec("ALTER TABLE productos ADD COLUMN unidad TEXT DEFAULT 'unidad'") } catch (_) {}
   try { db.exec("ALTER TABLE detalle_venta ADD COLUMN precio_compra_unitario REAL") } catch (_) {}
+  try { db.exec("ALTER TABLE ventas ADD COLUMN fiado_pagada INTEGER DEFAULT 0") } catch (_) {}
+  try { db.exec("ALTER TABLE ventas ADD COLUMN cobrado_en DATETIME") } catch (_) {}
 
   console.log('✅ Base de datos inicializada')
 }

@@ -42,6 +42,8 @@ const Caja = () => {
     setError('')
     if (!montoInicial && montoInicial !== 0)
       return setError('Ingresá el monto inicial')
+    if (!confirm(`¿Abrir caja con Gs. ${Number(montoInicial).toLocaleString('es-PY')} como monto inicial?`))
+      return
     try {
       await api.post('/caja/abrir', {
         usuario_id:    usuario.id,
@@ -58,6 +60,8 @@ const Caja = () => {
     setError('')
     if (!montoFinal && montoFinal !== 0)
       return setError('Ingresá el monto final contado')
+    if (!confirm(`¿Cerrar caja con Gs. ${Number(montoFinal).toLocaleString('es-PY')} como monto final? Esta acción no se puede deshacer.`))
+      return
     try {
       const { data } = await api.patch(`/caja/${cajaActiva.id}/cerrar`, {
         monto_final: Number(montoFinal)

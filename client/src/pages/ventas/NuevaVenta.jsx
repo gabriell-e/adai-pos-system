@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
 
@@ -12,6 +12,7 @@ const NuevaVenta = () => {
   const [productos, setProductos]     = useState([])
   const [clientes, setClientes]       = useState([])
   const [carrito, setCarrito]         = useState([])
+  const [cajaAbierta, setCajaAbierta] = useState(null)
 
   // Búsqueda producto
   const [busqueda, setBusqueda]       = useState('')
@@ -36,12 +37,14 @@ const NuevaVenta = () => {
 
   useEffect(() => {
     const cargarDatos = async () => {
-      const [prodRes, cliRes] = await Promise.all([
+      const [prodRes, cliRes, cajaRes] = await Promise.all([
         api.get('/productos'),
-        api.get('/clientes')
+        api.get('/clientes'),
+        api.get('/caja/activa').catch(() => ({ data: null }))
       ])
       setProductos(prodRes.data.filter(p => p.activo === 1))
       setClientes(cliRes.data)
+      setCajaAbierta(cajaRes.data)
     }
     cargarDatos()
   }, [])
@@ -198,6 +201,12 @@ const NuevaVenta = () => {
 
       {/* ── Columna izquierda ── */}
       <div className="flex-1 flex flex-col gap-4">
+
+        {!cajaAbierta && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700">
+            ⚠️ No hay caja abierta. Dirigite a <Link to="/caja" className="font-medium text-yellow-800 underline">Caja</Link> para abrirla antes de vender.
+          </div>
+        )}
 
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Nueva Venta</h1>
@@ -446,10 +455,10 @@ const NuevaVenta = () => {
 
         <button
           onClick={handleSubmit}
-          disabled={cargando || carrito.length === 0}
+          disabled={cargando || carrito.length === 0 || !cajaAbierta}
           className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-4 rounded-xl transition-colors text-base shadow-sm"
         >
-          {cargando ? 'Registrando...' : `Confirmar · ${formatGs(totalFinal)}`}
+          {cargando ? 'Registrando...' : !cajaAbierta ? 'Abrí la caja primero' : `Confirmar · ${formatGs(totalFinal)}`}
         </button>
 
       </div>

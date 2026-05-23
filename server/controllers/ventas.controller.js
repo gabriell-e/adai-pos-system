@@ -92,6 +92,11 @@ const crear = (req, res) => {
   if (tipo_pago === 'fiado' && !cliente_id)
     return res.status(400).json({ error: 'Venta fiada requiere un cliente' })
 
+  // Validar que haya caja abierta
+  const cajaAbierta = db.prepare("SELECT id FROM caja WHERE estado = 'abierta' LIMIT 1").get()
+  if (!cajaAbierta)
+    return res.status(409).json({ error: 'No hay caja abierta. Abrí la caja antes de vender.' })
+
   try {
     const realizarVenta = db.transaction(() => {
 
@@ -223,6 +228,35 @@ const crear = (req, res) => {
   }
 }
 
+// ─── COBRAR FIADO ────────────────────────────────────────────────────────────
+const cobrar = (req, res) => {
+  try {
+    const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(req.params.id)
+    if (!venta) return res.status(404).json({ error: 'Venta no encontrada' })
+    if (venta.tipo_pago !== 'fiado')
+      return res.status(400).json({ error: 'Solo se puede cobrar ventas fiadas' })
+    if (venta.fiado_pagada)
+      return res.status(409).json({ error: 'Esta venta fiada ya fue cobrada' })
+    if (venta.estado === 'anulada')
+      return res.status(400).json({ error: 'La venta está anulada' })
+
+    const cobrarFiado = db.transaction(() => {
+      db.prepare('UPDATE ventas SET fiado_pagada = 1, cobrado_en = ? WHERE id = ?')
+        .run(ahora(), req.params.id)
+
+      if (venta.cliente_id) {
+        db.prepare('UPDATE clientes SET deuda_total = deuda_total - ? WHERE id = ?')
+          .run(venta.total, venta.cliente_id)
+      }
+    })
+
+    cobrarFiado()
+    res.json({ mensaje: 'Venta fiada cobrada correctamente' })
+  } catch (err) {
+    res.status(400).json({ error: err.message })
+  }
+}
+
 // ─── ANULAR VENTA ────────────────────────────────────────────────────────────
 const anular = (req, res) => {
   try {
@@ -263,4 +297,4 @@ const anular = (req, res) => {
   }
 }
 
-module.exports = { getAll, getById, crear, anular }
+module.exports = { getAll, getById, crear, cobrar, anular }
