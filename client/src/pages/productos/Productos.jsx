@@ -13,7 +13,7 @@ const Productos = () => {
   const [form, setForm]               = useState({
     nombre: '', codigo_barras: '', precio_compra: '',
     precio_venta: '', stock: '', stock_minimo: '5',
-    categoria_id: '', tasa_iva: '10'
+    categoria_id: '', tasa_iva: '10', unidad: 'unidad'
   })
 
   const cargarDatos = async () => {
@@ -44,14 +44,15 @@ const Productos = () => {
         stock:         producto.stock,
         stock_minimo:  producto.stock_minimo,
         categoria_id:  producto.categoria_id || '',
-        tasa_iva:      producto.tasa_iva
+        tasa_iva:      producto.tasa_iva,
+        unidad:        producto.unidad || 'unidad'
       })
     } else {
       setEditando(null)
       setForm({
         nombre: '', codigo_barras: '', precio_compra: '',
         precio_venta: '', stock: '', stock_minimo: '5',
-        categoria_id: '', tasa_iva: '10'
+        categoria_id: '', tasa_iva: '10', unidad: 'unidad'
       })
     }
     setError('')
@@ -64,7 +65,7 @@ const Productos = () => {
     setError('')
   }
 
- const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     try {
@@ -76,7 +77,8 @@ const Productos = () => {
         stock:         Number(form.stock) || 0,
         stock_minimo:  Number(form.stock_minimo) || 0,
         categoria_id:  form.categoria_id ? Number(form.categoria_id) : null,
-        tasa_iva:      Number(form.tasa_iva)
+        tasa_iva:      Number(form.tasa_iva),
+        unidad:        form.unidad || 'unidad'
         }
         if (editando) {
         await api.put(`/productos/${editando.id}`, payload)
@@ -332,6 +334,20 @@ const Productos = () => {
                   />
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unidad de venta</label>
+                  <select
+                    value={form.unidad}
+                    onChange={e => setForm({ ...form, unidad: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="unidad">Unidad (u)</option>
+                    <option value="kg">Kilogramo (kg)</option>
+                    <option value="litro">Litro (L)</option>
+                    <option value="gramo">Gramo (g)</option>
+                  </select>
+                </div>
+                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
                   <select

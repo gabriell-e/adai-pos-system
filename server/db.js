@@ -45,10 +45,11 @@ const init = () => {
       codigo_barras TEXT UNIQUE,
       precio_compra REAL NOT NULL DEFAULT 0,
       precio_venta REAL NOT NULL,
-      stock INTEGER NOT NULL DEFAULT 0,
-      stock_minimo INTEGER DEFAULT 5,
+      stock REAL NOT NULL DEFAULT 0,
+      stock_minimo REAL DEFAULT 5,
       categoria_id INTEGER REFERENCES categorias(id),
       tasa_iva INTEGER CHECK(tasa_iva IN (0, 5, 10)) DEFAULT 10,
+      unidad TEXT DEFAULT 'unidad',
       activo INTEGER DEFAULT 1,
       creado_en DATETIME DEFAULT (datetime('now', 'localtime'))
     );
@@ -99,11 +100,12 @@ const init = () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       venta_id INTEGER NOT NULL REFERENCES ventas(id),
       producto_id INTEGER NOT NULL REFERENCES productos(id),
-      cantidad INTEGER NOT NULL,
+      cantidad REAL NOT NULL,
       precio_unitario REAL NOT NULL,
       tasa_iva INTEGER NOT NULL,
       monto_iva REAL NOT NULL,
-      subtotal REAL NOT NULL
+      subtotal REAL NOT NULL,
+      precio_compra_unitario REAL
     );
 
     CREATE TABLE IF NOT EXISTS compras (
@@ -125,7 +127,7 @@ const init = () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       compra_id INTEGER NOT NULL REFERENCES compras(id),
       producto_id INTEGER NOT NULL REFERENCES productos(id),
-      cantidad INTEGER NOT NULL,
+      cantidad REAL NOT NULL,
       precio_unitario REAL NOT NULL,
       tasa_iva INTEGER NOT NULL,
       monto_iva REAL NOT NULL,
@@ -137,7 +139,7 @@ const init = () => {
       producto_id INTEGER NOT NULL REFERENCES productos(id),
       usuario_id INTEGER REFERENCES usuarios(id),
       tipo TEXT CHECK(tipo IN ('entrada', 'salida', 'ajuste')) NOT NULL,
-      cantidad INTEGER NOT NULL,
+      cantidad REAL NOT NULL,
       referencia_tipo TEXT CHECK(referencia_tipo IN ('venta', 'compra', 'manual')),
       referencia_id INTEGER,
       motivo TEXT,
@@ -155,6 +157,10 @@ const init = () => {
     );
 
   `)
+
+  // Migraciones para bases de datos existentes
+  try { db.exec("ALTER TABLE productos ADD COLUMN unidad TEXT DEFAULT 'unidad'") } catch (_) {}
+  try { db.exec("ALTER TABLE detalle_venta ADD COLUMN precio_compra_unitario REAL") } catch (_) {}
 
   console.log('✅ Base de datos inicializada')
 }

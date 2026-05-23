@@ -114,37 +114,53 @@ const abrir = (req, res) => {
 // ─── CERRAR CAJA ─────────────────────────────────────────────────────────────
 const cerrar = (req, res) => {
   const { monto_final } = req.body
-
   if (monto_final === undefined || monto_final === null)
     return res.status(400).json({ error: 'El monto final es obligatorio' })
 
   try {
-    const caja = db.prepare("SELECT * FROM caja WHERE id = ?").get(req.params.id)
-    if (!caja)              return res.status(404).json({ error: 'Caja no encontrada' })
+    const caja = db.prepare('SELECT * FROM caja WHERE id = ?').get(req.params.id)
+    if (!caja)                   return res.status(404).json({ error: 'Caja no encontrada' })
     if (caja.estado === 'cerrada') return res.status(409).json({ error: 'La caja ya está cerrada' })
 
-    // Total de ventas en efectivo durante esta sesión
+    const cerrada_en = ahora()
+
+    // Total ventas del día
+    const totalVentas = db.prepare(`
+      SELECT COALESCE(SUM(total), 0) AS total
+      FROM ventas
+      WHERE creado_en >= ? AND estado = 'completada'
+    `).get(caja.abierta_en).total
+
+    // Total efectivo del día
     const totalEfectivo = db.prepare(`
       SELECT COALESCE(SUM(total), 0) AS total
       FROM ventas
-      WHERE creado_en >= ?
-        AND tipo_pago = 'efectivo'
-        AND estado = 'completada'
+      WHERE creado_en >= ? AND tipo_pago = 'efectivo' AND estado = 'completada'
     `).get(caja.abierta_en).total
 
-    const cerrada_en    = ahora()
-    const diferencia    = monto_final - (caja.monto_inicial + totalEfectivo)
+    // Costo real de lo vendido (ganancia bruta)
+    const costoVendido = db.prepare(`
+      SELECT COALESCE(SUM(dv.precio_compra_unitario * dv.cantidad), 0) AS total
+      FROM detalle_venta dv
+      JOIN ventas v ON dv.venta_id = v.id
+      WHERE v.creado_en >= ? AND v.estado = 'completada'
+    `).get(caja.abierta_en).total
+
+    const ganancia    = Math.round(totalVentas - costoVendido)
+    const diferencia  = Math.round(monto_final - (caja.monto_inicial + totalEfectivo))
 
     db.prepare(`
-      UPDATE caja SET monto_final = ?, cerrada_en = ?, estado = 'cerrada'
-      WHERE id = ?
+      UPDATE caja SET monto_final = ?, cerrada_en = ?, estado = 'cerrada' WHERE id = ?
     `).run(monto_final, cerrada_en, req.params.id)
 
     res.json({
       mensaje:         'Caja cerrada correctamente',
       monto_inicial:   caja.monto_inicial,
-      total_efectivo:  totalEfectivo,
-      esperado:        caja.monto_inicial + totalEfectivo,
+      total_ventas:    Math.round(totalVentas),
+      total_efectivo:  Math.round(totalEfectivo),
+      costo_vendido:   Math.round(costoVendido),
+      ganancia_bruta:  ganancia,
+      esperado:        Math.round(caja.monto_inicial + totalEfectivo),
       monto_final,
       diferencia,
       cerrada_en

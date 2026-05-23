@@ -126,6 +126,7 @@ const NuevaVenta = () => {
         precio_unitario: producto.precio_venta,
         tasa_iva:        producto.tasa_iva,
         stock:           producto.stock,
+        unidad:          producto.unidad || 'unidad',
         cantidad:        1
       }]
     })
@@ -136,9 +137,10 @@ const NuevaVenta = () => {
   }
 
   const cambiarCantidad = (producto_id, valor) => {
-    const num = parseInt(valor)
-    if (isNaN(num) || num < 1) return
     const item = carrito.find(i => i.producto_id === producto_id)
+    const esPeso = item.unidad === 'kg' || item.unidad === 'gramo' || item.unidad === 'litro'
+    const num = esPeso ? parseFloat(valor) : parseInt(valor)
+    if (isNaN(num) || num <= 0) return
     if (num > item.stock) return setError(`Stock máximo disponible: ${item.stock}`)
     setError('')
     setCarrito(prev =>
@@ -261,7 +263,7 @@ const NuevaVenta = () => {
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-800">{item.nombre}</p>
                       <p className="text-xs text-gray-400">
-                        IVA {item.tasa_iva}% ·
+                        IVA {item.tasa_iva}% · {item.unidad} ·
                         <span className={item.stock <= 5 ? 'text-red-400' : 'text-gray-400'}>
                           {' '}Disponible: {item.stock}
                         </span>
@@ -272,8 +274,7 @@ const NuevaVenta = () => {
                         type="number"
                         value={item.cantidad}
                         onChange={e => cambiarCantidad(item.producto_id, e.target.value)}
-                        className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        min="1"
+                        className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                         max={item.stock}
                       />
                     </td>

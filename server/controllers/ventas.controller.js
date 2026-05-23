@@ -138,11 +138,12 @@ const crear = (req, res) => {
         totalBruto += subtotal
 
         return {
-          producto_id:     item.producto_id,
-          cantidad:        item.cantidad,
-          precio_unitario: item.precio_unitario,
-          tasa_iva:        producto.tasa_iva,
-          monto_iva:       iva,
+          producto_id:              item.producto_id,
+          cantidad:                 item.cantidad,
+          precio_unitario:          item.precio_unitario,
+          precio_compra_unitario:   producto.precio_compra,
+          tasa_iva:                 producto.tasa_iva,
+          monto_iva:                iva,
           subtotal
         }
       })
@@ -183,10 +184,11 @@ const crear = (req, res) => {
       const venta_id = ventaResult.lastInsertRowid
 
       // 5. Insertar detalle + actualizar stock + movimientos
-      const stmtDetalle    = db.prepare(`
+      const stmtDetalle = db.prepare(`
         INSERT INTO detalle_venta
-          (venta_id, producto_id, cantidad, precio_unitario, tasa_iva, monto_iva, subtotal)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+          (venta_id, producto_id, cantidad, precio_unitario,
+          tasa_iva, monto_iva, subtotal, precio_compra_unitario)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `)
       const stmtStock      = db.prepare('UPDATE productos SET stock = stock - ? WHERE id = ?')
       const stmtMovimiento = db.prepare(`
@@ -198,7 +200,7 @@ const crear = (req, res) => {
       for (const item of itemsCalculados) {
         stmtDetalle.run(
           venta_id, item.producto_id, item.cantidad,
-          item.precio_unitario, item.tasa_iva, item.monto_iva, item.subtotal
+          item.precio_unitario, item.tasa_iva, item.monto_iva, item.subtotal, item.precio_compra_unitario
         )
         stmtStock.run(item.cantidad, item.producto_id)
         stmtMovimiento.run(item.producto_id, usuario_id, item.cantidad, venta_id, ahora())

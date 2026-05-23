@@ -7,7 +7,8 @@ router.get('/barcode/:codigo',         ctrl.getByCodigoBarras)
 router.get('/:id',                     ctrl.getById)
 router.post('/',                       ctrl.create)
 router.put('/:id',                     ctrl.update)
-router.delete('/:id',                  ctrl.remove)
+router.delete('/:id',                  ctrl.remove) 
+router.get('/inventario/valor', ctrl.getValorInventario)
 router.patch('/:id/activar', ctrl.activar)
 
 module.exports = router

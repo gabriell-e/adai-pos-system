@@ -24,6 +24,7 @@ app.use('/api/proveedores',   require('./routes/proveedores.routes'))
 app.use('/api/ventas',        require('./routes/ventas.routes'))
 app.use('/api/compras', require('./routes/compras.routes'))
 app.use('/api/caja', require('./routes/caja.routes'))
+app.use('/api/consumo', require('./routes/consumo.routes'))
 
 app.get('/api/ping', (req, res) => {
   res.json({ 

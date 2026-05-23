@@ -79,26 +79,26 @@ const seed = () => {
         db.prepare('SELECT id FROM categorias WHERE nombre = ?').get(nombre)?.id
 
       const productos = [
-        { nombre: 'Coca Cola 2L',         codigo: '7790895000153', p_compra: 5000,  p_venta: 8000,  stock: 24, stock_min: 6,  cat: 'Bebidas',    iva: 10 },
-        { nombre: 'Agua Mineral 500ml',   codigo: '7790895000154', p_compra: 1500,  p_venta: 2500,  stock: 48, stock_min: 12, cat: 'Bebidas',    iva: 10 },
-        { nombre: 'Leche Entera 1L',      codigo: '7790895000155', p_compra: 3500,  p_venta: 5000,  stock: 20, stock_min: 8,  cat: 'Lácteos',    iva: 5  },
-        { nombre: 'Yogur Natural 200g',   codigo: '7790895000156', p_compra: 2000,  p_venta: 3500,  stock: 15, stock_min: 5,  cat: 'Lácteos',    iva: 5  },
-        { nombre: 'Pan Lactal',           codigo: '7790895000157', p_compra: 4000,  p_venta: 6500,  stock: 10, stock_min: 4,  cat: 'Panadería',  iva: 5  },
-        { nombre: 'Detergente 500ml',     codigo: '7790895000158', p_compra: 4500,  p_venta: 7000,  stock: 12, stock_min: 4,  cat: 'Limpieza',    iva: 10 },
-        { nombre: 'Papas Fritas 100g',    codigo: '7790895000159', p_compra: 3000,  p_venta: 5000,  stock: 30, stock_min: 10, cat: 'Snacks',      iva: 10 },
-        { nombre: 'Atún en Lata 170g',    codigo: '7790895000160', p_compra: 5500,  p_venta: 8500,  stock: 18, stock_min: 6,  cat: 'Enlatados',  iva: 10 },
-        { nombre: 'Sal Fina 1kg',         codigo: '7790895000161', p_compra: 1000,  p_venta: 2000,  stock: 20, stock_min: 5,  cat: 'Condimentos', iva: 5  },
-        { nombre: 'Azúcar 1kg',           codigo: '7790895000162', p_compra: 3500,  p_venta: 5500,  stock: 15, stock_min: 5,  cat: 'Condimentos', iva: 5  },
+        { nombre: 'Coca Cola 2L',         codigo: '7790895000153', p_compra: 5000,  p_venta: 8000,  stock: 24, stock_min: 6,  cat: 'Bebidas',    iva: 10, unidad: 'unidad' },
+        { nombre: 'Agua Mineral 500ml',   codigo: '7790895000154', p_compra: 1500,  p_venta: 2500,  stock: 48, stock_min: 12, cat: 'Bebidas',    iva: 10, unidad: 'unidad' },
+        { nombre: 'Leche Entera 1L',      codigo: '7790895000155', p_compra: 3500,  p_venta: 5000,  stock: 20, stock_min: 8,  cat: 'Lácteos',    iva: 5,  unidad: 'unidad' },
+        { nombre: 'Yogur Natural 200g',   codigo: '7790895000156', p_compra: 2000,  p_venta: 3500,  stock: 15, stock_min: 5,  cat: 'Lácteos',    iva: 5,  unidad: 'unidad' },
+        { nombre: 'Pan Lactal',           codigo: '7790895000157', p_compra: 4000,  p_venta: 6500,  stock: 10, stock_min: 4,  cat: 'Panadería',  iva: 5,  unidad: 'unidad' },
+        { nombre: 'Detergente 500ml',     codigo: '7790895000158', p_compra: 4500,  p_venta: 7000,  stock: 12, stock_min: 4,  cat: 'Limpieza',    iva: 10, unidad: 'unidad' },
+        { nombre: 'Papas Fritas 100g',    codigo: '7790895000159', p_compra: 3000,  p_venta: 5000,  stock: 30, stock_min: 10, cat: 'Snacks',      iva: 10, unidad: 'unidad' },
+        { nombre: 'Atún en Lata 170g',    codigo: '7790895000160', p_compra: 5500,  p_venta: 8500,  stock: 18, stock_min: 6,  cat: 'Enlatados',  iva: 10, unidad: 'unidad' },
+        { nombre: 'Sal Fina 1kg',         codigo: '7790895000161', p_compra: 1000,  p_venta: 2000,  stock: 20, stock_min: 5,  cat: 'Condimentos', iva: 5,  unidad: 'kg' },
+        { nombre: 'Azúcar 1kg',           codigo: '7790895000162', p_compra: 3500,  p_venta: 5500,  stock: 15, stock_min: 5,  cat: 'Condimentos', iva: 5,  unidad: 'kg' },
       ]
 
       const stmt = db.prepare(`
         INSERT INTO productos
-          (nombre, codigo_barras, precio_compra, precio_venta, stock, stock_minimo, categoria_id, tasa_iva, creado_en)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (nombre, codigo_barras, precio_compra, precio_venta, stock, stock_minimo, categoria_id, tasa_iva, unidad, creado_en)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
 
       productos.forEach(p =>
-        stmt.run(p.nombre, p.codigo, p.p_compra, p.p_venta, p.stock, p.stock_min, getCat(p.cat), p.iva, ahora())
+        stmt.run(p.nombre, p.codigo, p.p_compra, p.p_venta, p.stock, p.stock_min, getCat(p.cat), p.iva, p.unidad, ahora())
       )
       console.log('✅ Productos insertados')
     } else {
