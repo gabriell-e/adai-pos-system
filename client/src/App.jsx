@@ -9,6 +9,7 @@ import Proveedores from './pages/proveedores/Proveedores'
 import NuevaVenta   from './pages/ventas/NuevaVenta'
 import DetalleVenta from './pages/ventas/DetalleVenta'
 import Consumo      from './pages/consumo/Consumo'
+import Usuarios     from './pages/usuarios/Usuarios'
 import Ventas   from './pages/ventas/Ventas'
 import Compras  from './pages/compras/Compras'
 import Caja     from './pages/caja/Caja'
@@ -44,6 +45,7 @@ const App = () => (
                 <Route path="/clientes" element={<Clientes />} />
                 <Route path="/proveedores" element={<Proveedores />} />
                 <Route path="/consumo"     element={<Consumo />} />
+                <Route path="/usuarios"    element={<Usuarios />} />
                 <Route path="/caja"         element={<Caja />} />
                 <Route path="/configuracion" element={<Configuracion />} />
                 

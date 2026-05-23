@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
 import api from '../../api/axios'
+import { useAuth } from '../../context/AuthContext'
 
 const Productos = () => {
+  const { usuario } = useAuth()
+  const esAdmin = usuario?.rol === 'admin'
   const [productos, setProductos]     = useState([])
   const [categorias, setCategorias]   = useState([])
   const [cargando, setCargando]       = useState(true)
@@ -138,12 +141,14 @@ const Productos = () => {
           <h1 className="text-2xl font-bold text-gray-800">Productos</h1>
           <p className="text-sm text-gray-500 mt-0.5">{productos.length} productos registrados</p>
         </div>
-        <button
-          onClick={() => abrirModal()}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          + Nuevo producto
-        </button>
+        {esAdmin && (
+          <button
+            onClick={() => abrirModal()}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            + Nuevo producto
+          </button>
+        )}
       </div>
 
       {/* Filtros */}
@@ -222,29 +227,24 @@ const Productos = () => {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-center">
-                <div className="flex justify-center gap-2">
-                    <button
-                    onClick={() => abrirModal(p)}
-                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                    >
-                    Editar
+                {esAdmin ? (
+                  <div className="flex justify-center gap-2">
+                    <button onClick={() => abrirModal(p)} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                      Editar
                     </button>
                     {p.activo === 1 ? (
-                    <button
-                        onClick={() => desactivar(p.id)}
-                        className="text-xs text-red-500 hover:text-red-700 font-medium"
-                    >
+                      <button onClick={() => desactivar(p.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">
                         Desactivar
-                    </button>
+                      </button>
                     ) : (
-                    <button
-                        onClick={() => activar(p.id)}
-                        className="text-xs text-emerald-600 hover:text-emerald-800 font-medium"
-                    >
+                      <button onClick={() => activar(p.id)} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">
                         Activar
-                    </button>
+                      </button>
                     )}
-                </div>
+                  </div>
+                ) : (
+                  <span className="text-xs text-gray-300">—</span>
+                )}
                 </td>
               </tr>
             ))}

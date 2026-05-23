@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../../api/axios'
+import { useAuth } from '../../context/AuthContext'
 import useFormValidacion from '../../utils/useFormValidacion'
 import { soloTexto, soloRucCi, soloTelefono, esEmail, limpiar } from '../../utils/validar'
 
@@ -34,6 +35,8 @@ const reglas = {
 }
 
 const Clientes = () => {
+  const { usuario } = useAuth()
+  const esAdmin = usuario?.rol === 'admin'
   const [clientes, setClientes] = useState([])
   const [cargando, setCargando] = useState(true)
   const [busqueda, setBusqueda] = useState('')
@@ -191,12 +194,14 @@ const Clientes = () => {
                     >
                       Editar
                     </button>
-                    <button
-                      onClick={() => eliminar(c.id)}
-                      className="text-xs text-red-500 hover:text-red-700 font-medium"
-                    >
-                      Eliminar
-                    </button>
+                    {esAdmin && (
+                      <button
+                        onClick={() => eliminar(c.id)}
+                        className="text-xs text-red-500 hover:text-red-700 font-medium"
+                      >
+                        Eliminar
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
