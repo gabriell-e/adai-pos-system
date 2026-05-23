@@ -8,6 +8,7 @@ import Clientes from './pages/clientes/Clientes'
 import Proveedores from './pages/proveedores/Proveedores'
 import NuevaVenta   from './pages/ventas/NuevaVenta'
 import DetalleVenta from './pages/ventas/DetalleVenta'
+import Consumo      from './pages/consumo/Consumo'
 
 // Placeholder para páginas que vamos a construir
 const Pronto = ({ nombre }) => (
@@ -37,7 +38,8 @@ const App = () => (
                 <Route path="/productos" element={<Productos />} />
                 <Route path="/clientes" element={<Clientes />} />
                 <Route path="/proveedores" element={<Proveedores />} />
-                <Route path="/caja"          element={<Pronto nombre="Caja" />} />
+                <Route path="/consumo"     element={<Consumo />} />
+                <Route path="/caja"         element={<Pronto nombre="Caja" />} />
                 <Route path="/configuracion" element={<Pronto nombre="Configuración" />} />
                 
               </Routes>

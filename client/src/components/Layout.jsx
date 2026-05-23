@@ -10,6 +10,7 @@ const navItems = [
   { path: '/productos',        label: 'Productos',    icon: '🏷️',  rol: 'admin' },
   { path: '/clientes',         label: 'Clientes',     icon: '👥', rol: 'ambos' },
   { path: '/proveedores',      label: 'Proveedores',  icon: '🏭', rol: 'admin' },
+  { path: '/consumo',          label: 'Consumo',      icon: '📥', rol: 'admin' },
   { path: '/caja',             label: 'Caja',         icon: '💰', rol: 'ambos' },
   { path: '/configuracion',    label: 'Configuración',icon: '⚙️',  rol: 'admin' },
 ]
