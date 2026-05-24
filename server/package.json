@@ -8,6 +8,7 @@
     "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "seed": "node seeders/seed.js",
+    "seed:prod":      "node seeders/seed.produccion.js",
     "migrate": "node migrations/001_mejoras.js"
   },
   "keywords": [],
