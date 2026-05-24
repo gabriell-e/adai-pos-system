@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import PrivateRoute from './components/PrivateRoute'
 import Layout from './components/Layout'
@@ -15,15 +15,6 @@ import Compras  from './pages/compras/Compras'
 import Caja     from './pages/caja/Caja'
 import Dashboard      from './pages/dashboard/Dashboard'
 import Configuracion  from './pages/configuracion/Configuracion'
-
-// Placeholder para páginas que vamos a construir
-const Pronto = ({ nombre }) => (
-  <div className="bg-white rounded-xl p-8 text-center text-gray-400">
-    <p className="text-4xl mb-3">🚧</p>
-    <p className="text-lg font-medium">{nombre}</p>
-    <p className="text-sm">En construcción</p>
-  </div>
-)
 
 const App = () => (
   <BrowserRouter>
@@ -48,7 +39,6 @@ const App = () => (
                 <Route path="/usuarios"    element={<Usuarios />} />
                 <Route path="/caja"         element={<Caja />} />
                 <Route path="/configuracion" element={<Configuracion />} />
-                
               </Routes>
             </Layout>
           </PrivateRoute>

@@ -43,7 +43,6 @@ const Dashboard = () => {
     return f === hoy && v.estado === 'completada'
   })
   const totalHoy    = ventasHoy.reduce((acc, v) => acc + v.total, 0)
-  const costoHoy    = 0 // se calcularía con JOIN a detalle_venta
   const ventasFiado = ventasHoy.filter(v => v.tipo_pago === 'fiado' && !v.fiado_pagada)
   const fiadoPendiente = ventasFiado.reduce((acc, v) => acc + v.total, 0)
 
@@ -56,7 +55,6 @@ const Dashboard = () => {
   ].filter(t => t.total > 0)
 
   const ultimasVentas = ventas.filter(v => v.estado === 'completada').slice(0, 5)
-  const productosCount = 0 // placeholder, no se necesita ahora
 
   if (cargando) return (
     <div className="flex justify-center items-center h-64">
