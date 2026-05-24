@@ -113,9 +113,10 @@ const NuevaVenta = () => {
           setError(`Stock máximo disponible: ${producto.stock}`)
           return prev
         }
+        const incremento = producto.unidad === 'kg' || producto.unidad === 'gramo' || producto.unidad === 'litro' ? 0.1 : 1
         return prev.map(i =>
           i.producto_id === producto.id
-            ? { ...i, cantidad: i.cantidad + 1 }
+            ? { ...i, cantidad: Math.round((i.cantidad + incremento) * 100) / 100 }
             : i
         )
       }
@@ -279,13 +280,14 @@ const NuevaVenta = () => {
                       </p>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <input
-                        type="number"
-                        value={item.cantidad}
-                        onChange={e => cambiarCantidad(item.producto_id, e.target.value)}
-                        className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        max={item.stock}
-                      />
+      <input
+        type="number"
+        value={item.cantidad}
+        step={item.unidad === 'kg' || item.unidad === 'gramo' || item.unidad === 'litro' ? '0.1' : '1'}
+        onChange={e => cambiarCantidad(item.producto_id, e.target.value)}
+        className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        max={item.stock}
+      />
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-gray-700">
                       {formatGs(item.precio_unitario)}
