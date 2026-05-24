@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "nodemon index.js",
     "start": "node index.js",
+    "build": "cd ../client && npm run build",
+    "start:prod": "npm run build && node index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "seed": "node seeders/seed.js",
-    "seed:prod":      "node seeders/seed.produccion.js",
+    "seed:prod": "node seeders/seed.produccion.js",
     "migrate": "node migrations/001_mejoras.js"
   },
   "keywords": [],
@@ -19,7 +21,7 @@
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.9.0",
     "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
+    "dotenv": "^16.4.7",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3"
   },

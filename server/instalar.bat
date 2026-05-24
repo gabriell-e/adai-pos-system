@@ -27,6 +27,11 @@ call npm install
 cd ..
 
 echo.
+echo Compilando frontend...
+cd server
+call npm run build
+
+echo.
 echo ================================
 echo   Instalacion completada!
 echo   Ejecuta iniciar.bat para arrancar
