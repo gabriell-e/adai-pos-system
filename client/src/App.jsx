@@ -5,6 +5,7 @@ import Layout from './components/Layout'
 import Login from './pages/Login'
 import Productos from './pages/productos/Productos'
 import Clientes from './pages/clientes/Clientes'
+import Categorias from './pages/categorias/Categorias'
 import Proveedores from './pages/proveedores/Proveedores'
 import NuevaVenta   from './pages/ventas/NuevaVenta'
 import DetalleVenta from './pages/ventas/DetalleVenta'
@@ -34,6 +35,7 @@ const App = () => (
                 <Route path="/compras"      element={<Compras />} />
                 <Route path="/productos" element={<Productos />} />
                 <Route path="/clientes" element={<Clientes />} />
+                <Route path="/categorias" element={<Categorias />} />
                 <Route path="/proveedores" element={<Proveedores />} />
                 <Route path="/consumo"     element={<Consumo />} />
                 <Route path="/usuarios"    element={<Usuarios />} />

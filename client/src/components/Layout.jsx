@@ -8,6 +8,7 @@ const navItems = [
   { path: '/ventas',           label: 'Ventas',       icon: '📋', rol: 'ambos' },
   { path: '/compras',          label: 'Compras',      icon: '📦', rol: 'admin' },
   { path: '/productos',        label: 'Productos',    icon: '🏷️',  rol: 'admin' },
+  { path: '/categorias',       label: 'Categorías',   icon: '📁', rol: 'admin' },
   { path: '/clientes',         label: 'Clientes',     icon: '👥', rol: 'ambos' },
   { path: '/proveedores',      label: 'Proveedores',  icon: '🏭', rol: 'admin' },
   { path: '/consumo',          label: 'Consumo',      icon: '📥', rol: 'admin' },
