@@ -165,61 +165,64 @@ Tablas principales: `configuracion`, `usuarios`, `categorias`, `productos`, `cli
 
 ---
 
-## Instalación y uso
+## Instalación en PC del cliente
 
 ### Requisitos
-- Node.js 18+
-- npm
+- Windows 10/11
+- Node.js 18+ — https://nodejs.org
+- Git — https://git-scm.com
 
-### Instalación
+### Paso a paso
+
+1. **Instalar Node.js**  
+   Descargar e instalar desde https://nodejs.org (versión LTS).  
+   Marcar la opción "Add to PATH" durante la instalación.
+
+2. **Instalar Git**  
+   Descargar e instalar desde https://git-scm.com.  
+   Usar las opciones por defecto.
+
+3. **Abrir terminal**  
+   Presionar `Win + R`, escribir `cmd` y presionar Enter.
+
+4. **Clonar el sistema**
+   ```bash
+   cd %USERPROFILE%\Desktop
+   git clone https://github.com/gabriell-e/adai-pos-system.git
+   cd adai-pos-system
+   ```
+
+5. **Ejecutar instalador**
+   ```bash
+   instalar.bat
+   ```
+   - Instala dependencias del servidor y del cliente
+   - Pregunta si cargar datos de ejemplo
+   - Compila el frontend automáticamente
+
+6. **Iniciar el sistema**
+   ```bash
+   iniciar.bat
+   ```
+   Se abre el navegador en `http://localhost:3001`
+
+7. **Ingresar**  
+   - **Admin:** `admin@adai.com` / `admin123`  
+   - **Cajero:** `cajero@adai.com` / `cajero123`  
+   - Ir a *Configuración* para cargar RUC, timbrado y datos del negocio.
+
+### Actualizar el sistema
 
 ```bash
-git clone https://github.com/gabriell-e/adai-pos-system.git
-cd adai-pos-system
-
-# Backend
-cd server
-npm install
-
-# Frontend
-cd ../client
-npm install
+cd %USERPROFILE%\Desktop\adai-pos-system
+git pull
+instalar.bat
 ```
 
-### Variables de entorno
-
-Creá `server/.env` basándote en `server/.env.example`:
-
-```env
-TZ=America/Asuncion
-JWT_SECRET=cambiar_por_clave_segura
-PORT=3001
-```
-
-### Base de datos
-
-```bash
-cd server
-npm run seed
-```
-
-Crea automáticamente:
-- **Admin:** `admin@adai.com` / `admin123`
-- **Cajero:** `cajero@adai.com` / `cajero123`
-- 8 categorías, 10 productos de ejemplo, clientes y proveedores
-- Configuración fiscal inicial para Despensa Adai
-
-### Desarrollo
-
-```bash
-# Terminal 1 — Backend (puerto 3001)
-cd server && npm run dev
-
-# Terminal 2 — Frontend (puerto 5173)
-cd client && npm run dev
-```
-
-El proxy de Vite redirige `/api/*` al backend automáticamente, sin problemas de CORS en desarrollo.
+### Notas
+- El sistema corre únicamente en `http://localhost:3001` (un solo puerto)
+- Para cerrar, solo cerrar la ventana del terminal
+- Base de datos local en `server/adai.db` — hacer copias de seguridad periódicas
 
 ---
 
