@@ -102,6 +102,7 @@ const init = () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       venta_id INTEGER NOT NULL REFERENCES ventas(id),
       producto_id INTEGER NOT NULL REFERENCES productos(id),
+      presentacion_id INTEGER REFERENCES presentaciones_producto(id),
       cantidad REAL NOT NULL,
       precio_unitario REAL NOT NULL,
       tasa_iva INTEGER NOT NULL,
@@ -129,6 +130,7 @@ const init = () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       compra_id INTEGER NOT NULL REFERENCES compras(id),
       producto_id INTEGER NOT NULL REFERENCES productos(id),
+      presentacion_id INTEGER REFERENCES presentaciones_producto(id),
       cantidad REAL NOT NULL,
       precio_unitario REAL NOT NULL,
       tasa_iva INTEGER NOT NULL,
@@ -148,6 +150,19 @@ const init = () => {
       creado_en DATETIME DEFAULT (datetime('now', 'localtime'))
     );
 
+    CREATE TABLE IF NOT EXISTS presentaciones_producto (
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      producto_id          INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+      nombre               TEXT    NOT NULL,
+      unidades_por_paquete REAL    NOT NULL DEFAULT 1,
+      precio_venta         REAL    NOT NULL DEFAULT 0,
+      precio_compra        REAL    NOT NULL DEFAULT 0,
+      codigo_barras        TEXT,
+      es_venta_defecto     INTEGER NOT NULL DEFAULT 0,
+      es_compra_defecto    INTEGER NOT NULL DEFAULT 0,
+      creado_en            DATETIME DEFAULT (datetime('now', 'localtime'))
+    );
+
     CREATE TABLE IF NOT EXISTS caja (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       usuario_id INTEGER REFERENCES usuarios(id),
@@ -162,7 +177,10 @@ const init = () => {
 
   // Migraciones para bases de datos existentes
   try { db.exec("ALTER TABLE productos ADD COLUMN unidad TEXT DEFAULT 'unidad'") } catch (_) {}
+  try { db.exec("ALTER TABLE productos ADD COLUMN unidad_base TEXT DEFAULT 'unidad'") } catch (_) {}
   try { db.exec("ALTER TABLE detalle_venta ADD COLUMN precio_compra_unitario REAL") } catch (_) {}
+  try { db.exec("ALTER TABLE detalle_venta ADD COLUMN presentacion_id INTEGER REFERENCES presentaciones_producto(id)") } catch (_) {}
+  try { db.exec("ALTER TABLE detalle_compra ADD COLUMN presentacion_id INTEGER REFERENCES presentaciones_producto(id)") } catch (_) {}
   try { db.exec("ALTER TABLE ventas ADD COLUMN fiado_pagada INTEGER DEFAULT 0") } catch (_) {}
   try { db.exec("ALTER TABLE ventas ADD COLUMN cobrado_en DATETIME") } catch (_) {}
 

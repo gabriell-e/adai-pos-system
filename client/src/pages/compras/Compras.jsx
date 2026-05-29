@@ -21,7 +21,7 @@ const Compras = () => {
   const [form, setForm] = useState({
     proveedor_id:              '',
     numero_factura_proveedor:  '',
-    items:                     [{ producto_id: '', cantidad: '', precio_unitario: '' }]
+    items:                     [{ producto_id: '', presentation_id: '', cantidad: '', precio_unitario: '' }]
   })
 
   const cargarDatos = async () => {
@@ -52,7 +52,7 @@ const Compras = () => {
   const agregarItem = () =>
     setForm(prev => ({
       ...prev,
-      items: [...prev.items, { producto_id: '', cantidad: '', precio_unitario: '' }]
+      items: [...prev.items, { producto_id: '', presentation_id: '', cantidad: '', precio_unitario: '' }]
     }))
 
   const quitarItem = (idx) =>
@@ -69,14 +69,20 @@ const Compras = () => {
       )
     }))
 
-  // Autocompletar precio de compra del producto seleccionado
+  // Autocompletar con la presentación de compra por defecto
   const seleccionarProducto = (idx, producto_id) => {
     const producto = productos.find(p => p.id === Number(producto_id))
+    const presDefecto = producto?.presentaciones?.find(p => p.es_compra_defecto === 1)
     setForm(prev => ({
       ...prev,
       items: prev.items.map((item, i) =>
         i === idx
-          ? { ...item, producto_id, precio_unitario: producto?.precio_compra || '' }
+          ? {
+              ...item,
+              producto_id,
+              presentation_id: presDefecto?.id || '',
+              precio_unitario: presDefecto?.precio_compra || producto?.precio_compra || ''
+            }
           : item
       )
     }))
@@ -103,6 +109,7 @@ const Compras = () => {
         numero_factura_proveedor: form.numero_factura_proveedor || null,
         items: itemsValidos.map(i => ({
           producto_id:     Number(i.producto_id),
+          presentation_id: i.presentation_id ? Number(i.presentation_id) : null,
           cantidad:        Number(i.cantidad),
           precio_unitario: Number(i.precio_unitario)
         }))
@@ -111,7 +118,7 @@ const Compras = () => {
       setModal(false)
       setForm({
         proveedor_id: '', numero_factura_proveedor: '',
-        items: [{ producto_id: '', cantidad: '', precio_unitario: '' }]
+        items: [{ producto_id: '', presentation_id: '', cantidad: '', precio_unitario: '' }]
       })
     } catch (err) {
       setError(err.response?.data?.error || 'Error al registrar compra')
@@ -237,7 +244,11 @@ const Compras = () => {
                 <div key={item.id} className="flex justify-between text-sm">
                   <div>
                     <p className="text-gray-800">{item.producto_nombre}</p>
-                    <p className="text-xs text-gray-400">{item.cantidad} × {formatGs(item.precio_unitario)}</p>
+                    <p className="text-xs text-gray-400">
+                      {item.presentacion_nombre && <span className="text-purple-600">{item.presentacion_nombre}</span>}
+                      {item.presentacion_nombre && <span> · </span>}
+                      {item.cantidad} × {formatGs(item.precio_unitario)}
+                    </p>
                   </div>
                   <p className="font-medium">{formatGs(item.subtotal)}</p>
                 </div>
@@ -306,9 +317,10 @@ const Compras = () => {
                 <div className="space-y-2">
                   {form.items.map((item, idx) => {
                     const prod = productos.find(p => p.id === Number(item.producto_id))
+                    const presentaciones = prod?.presentaciones || []
                     return (
                       <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                        <div className="col-span-5">
+                        <div className="col-span-4">
                           <select
                             value={item.producto_id}
                             onChange={e => seleccionarProducto(idx, e.target.value)}
@@ -321,17 +333,33 @@ const Compras = () => {
                           </select>
                         </div>
                         <div className="col-span-2">
+                          <select
+                            value={item.presentation_id}
+                            onChange={e => actualizarItem(idx, 'presentation_id', e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            disabled={!prod}
+                          >
+                            {presentaciones.length === 0 ? (
+                              <option value="">Unidad</option>
+                            ) : presentaciones.map(pres => (
+                              <option key={pres.id} value={pres.id}>
+                                {pres.nombre} ({pres.unidades_por_paquete} {prod?.unidad || 'u'})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="col-span-2">
                           <input
                             type="number"
                             value={item.cantidad}
                             onChange={e => actualizarItem(idx, 'cantidad', e.target.value)}
-                            placeholder={`Cant.${prod?.unidad !== 'unidad' ? ` (${prod?.unidad})` : ''}`}
+                            placeholder="Cant."
                             className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                             min="0"
-                            step={prod?.unidad === 'kg' || prod?.unidad === 'litro' ? '0.1' : '1'}
+                            step="1"
                           />
                         </div>
-                        <div className="col-span-4">
+                        <div className="col-span-3">
                           <input
                             type="number"
                             value={item.precio_unitario}

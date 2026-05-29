@@ -64,9 +64,12 @@ const getById = (req, res) => {
       SELECT
         dv.*,
         p.nombre AS producto_nombre,
-        p.codigo_barras
+        p.codigo_barras,
+        pp.nombre AS presentacion_nombre,
+        pp.unidades_por_paquete
       FROM detalle_venta dv
       JOIN productos p ON dv.producto_id = p.id
+      LEFT JOIN presentaciones_producto pp ON dv.presentacion_id = pp.id
       WHERE dv.venta_id = ?
     `).all(req.params.id)
 
@@ -117,15 +120,62 @@ const crear = (req, res) => {
       let totalBruto = 0
 
       const itemsCalculados = items.map(item => {
-        if (!item.producto_id || !item.cantidad || !item.precio_unitario)
-          throw new Error('Cada item requiere producto_id, cantidad y precio_unitario')
+        if ((!item.producto_id && !item.presentation_id) || !item.cantidad || !item.precio_unitario)
+          throw new Error('Cada item requiere producto_id o presentation_id, cantidad y precio_unitario')
 
-        const producto = db.prepare('SELECT * FROM productos WHERE id = ? AND activo = 1')
-          .get(item.producto_id)
-        if (!producto)
-          throw new Error(`Producto ID ${item.producto_id} no encontrado o inactivo`)
-        if (producto.stock < item.cantidad)
-          throw new Error(`Stock insuficiente para "${producto.nombre}". Disponible: ${producto.stock}`)
+        let productoId = item.producto_id
+        let presentacionId = item.presentation_id || null
+        let unidadesPorPaquete = 1
+
+        // Si se especificó presentation_id, resolver desde la presentación
+        if (presentacionId) {
+          const pres = db.prepare(`
+            SELECT pp.*, p.tasa_iva, p.stock, p.nombre, p.unidad_base, p.precio_compra
+            FROM presentaciones_producto pp
+            JOIN productos p ON p.id = pp.producto_id
+            WHERE pp.id = ? AND p.activo = 1
+          `).get(presentacionId)
+          if (!pres)
+            throw new Error(`Presentación ID ${presentacionId} no encontrada`)
+          productoId = pres.producto_id
+          unidadesPorPaquete = pres.unidades_por_paquete
+          item.producto_id = productoId
+          // Usar tasa_iva del producto base
+          item.tasa_iva = pres.tasa_iva
+
+          const stockReal = pres.stock
+          const unidadesSolicitadas = item.cantidad * unidadesPorPaquete
+          if (stockReal < unidadesSolicitadas)
+            throw new Error(`Stock insuficiente para "${pres.nombre}". Disponible: ${stockReal} ${pres.unidad_base || 'unidad'}`)
+        }
+
+        // Fallback: buscar producto directamente (backward compatible)
+        let producto
+        if (!presentacionId) {
+          producto = db.prepare('SELECT * FROM productos WHERE id = ? AND activo = 1')
+            .get(item.producto_id)
+          if (!producto)
+            throw new Error(`Producto ID ${item.producto_id} no encontrado o inactivo`)
+
+          const presDefecto = db.prepare(`
+            SELECT id, unidades_por_paquete FROM presentaciones_producto
+            WHERE producto_id = ? AND es_venta_defecto = 1 LIMIT 1
+          `).get(producto.id)
+          if (presDefecto) {
+            presentacionId = presDefecto.id
+            unidadesPorPaquete = presDefecto.unidades_por_paquete
+          }
+
+          const stockReal = producto.stock
+          const unidadesSolicitadas = item.cantidad * unidadesPorPaquete
+          if (stockReal < unidadesSolicitadas)
+            throw new Error(`Stock insuficiente para "${producto.nombre}". Disponible: ${stockReal} ${producto.unidad_base || 'unidad'}`)
+        }
+
+        // Volver a obtener producto si solo tenemos presentacion
+        if (!producto) {
+          producto = db.prepare('SELECT * FROM productos WHERE id = ?').get(productoId)
+        }
 
         const subtotal = item.precio_unitario * item.cantidad
         const { gravado, iva, exento } = calcularIVA(subtotal, producto.tasa_iva)
@@ -143,8 +193,10 @@ const crear = (req, res) => {
         totalBruto += subtotal
 
         return {
-          producto_id:              item.producto_id,
+          producto_id:              productoId,
+          presentacion_id:          presentacionId,
           cantidad:                 item.cantidad,
+          unidades_por_paquete:     unidadesPorPaquete,
           precio_unitario:          item.precio_unitario,
           precio_compra_unitario:   producto.precio_compra,
           tasa_iva:                 producto.tasa_iva,
@@ -191,9 +243,9 @@ const crear = (req, res) => {
       // 5. Insertar detalle + actualizar stock + movimientos
       const stmtDetalle = db.prepare(`
         INSERT INTO detalle_venta
-          (venta_id, producto_id, cantidad, precio_unitario,
+          (venta_id, producto_id, presentacion_id, cantidad, precio_unitario,
           tasa_iva, monto_iva, subtotal, precio_compra_unitario)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       const stmtStock      = db.prepare('UPDATE productos SET stock = stock - ? WHERE id = ?')
       const stmtMovimiento = db.prepare(`
@@ -203,12 +255,13 @@ const crear = (req, res) => {
       `)
 
       for (const item of itemsCalculados) {
+        const unidadesBase = item.cantidad * item.unidades_por_paquete
         stmtDetalle.run(
-          venta_id, item.producto_id, item.cantidad,
+          venta_id, item.producto_id, item.presentacion_id, item.cantidad,
           item.precio_unitario, item.tasa_iva, item.monto_iva, item.subtotal, item.precio_compra_unitario
         )
-        stmtStock.run(item.cantidad, item.producto_id)
-        stmtMovimiento.run(item.producto_id, usuario_id, item.cantidad, venta_id, ahora())
+        stmtStock.run(unidadesBase, item.producto_id)
+        stmtMovimiento.run(item.producto_id, usuario_id, unidadesBase, venta_id, ahora())
       }
 
       // 6. Si es fiado, actualizar deuda del cliente
@@ -265,8 +318,13 @@ const anular = (req, res) => {
       if (!venta) throw new Error('Venta no encontrada')
       if (venta.estado === 'anulada') throw new Error('La venta ya está anulada')
 
-      // Revertir stock
-      const detalle = db.prepare('SELECT * FROM detalle_venta WHERE venta_id = ?').all(req.params.id)
+      // Revertir stock (en unidades base)
+      const detalle = db.prepare(`
+        SELECT dv.*, COALESCE(pp.unidades_por_paquete, 1) AS unidades_por_paquete
+        FROM detalle_venta dv
+        LEFT JOIN presentaciones_producto pp ON dv.presentacion_id = pp.id
+        WHERE dv.venta_id = ?
+      `).all(req.params.id)
 
       const stmtStock      = db.prepare('UPDATE productos SET stock = stock + ? WHERE id = ?')
       const stmtMovimiento = db.prepare(`
@@ -276,8 +334,9 @@ const anular = (req, res) => {
       `)
 
       for (const item of detalle) {
-        stmtStock.run(item.cantidad, item.producto_id)
-        stmtMovimiento.run(item.producto_id, venta.usuario_id, item.cantidad, venta.id, ahora())
+        const unidadesBase = item.cantidad * item.unidades_por_paquete
+        stmtStock.run(unidadesBase, item.producto_id)
+        stmtMovimiento.run(item.producto_id, venta.usuario_id, unidadesBase, venta.id, ahora())
       }
 
       // Si era fiada, revertir deuda

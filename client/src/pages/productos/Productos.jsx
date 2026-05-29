@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
 
+const formatGs = n => `Gs. ${Number(n).toLocaleString('es-PY')}`
+
 const Productos = () => {
   const { usuario } = useAuth()
   const esAdmin = usuario?.rol === 'admin'
@@ -18,6 +20,18 @@ const Productos = () => {
     precio_venta: '', stock: '', stock_minimo: '5',
     categoria_id: '', tasa_iva: '10', unidad: 'unidad'
   })
+
+  // Estado para el modal de presentaciones
+  const [modalPres, setModalPres]       = useState(false)
+  const [productoPres, setProductoPres] = useState(null)
+  const [presentaciones, setPresentaciones] = useState([])
+  const [editandoPres, setEditandoPres] = useState(null)
+  const [formPres, setFormPres]         = useState({
+    nombre: '', unidades_por_paquete: '1',
+    precio_venta: '', precio_compra: '',
+    codigo_barras: '', es_venta_defecto: false, es_compra_defecto: false
+  })
+  const [errorPres, setErrorPres]       = useState('')
 
   const cargarDatos = async () => {
     try {
@@ -115,6 +129,94 @@ const Productos = () => {
   }
 }
 
+  // ── Presentaciones ────────────────────────────────────────────────────
+  const abrirModalPres = async (producto) => {
+    setProductoPres(producto)
+    setEditandoPres(null)
+    setFormPres({
+      nombre: '', unidades_por_paquete: '1',
+      precio_venta: '', precio_compra: '',
+      codigo_barras: '', es_venta_defecto: false, es_compra_defecto: false
+    })
+    setErrorPres('')
+    try {
+      const { data } = await api.get(`/productos/${producto.id}/presentaciones`)
+      setPresentaciones(data)
+    } catch {
+      setPresentaciones([])
+    }
+    setModalPres(true)
+  }
+
+  const cerrarModalPres = () => {
+    setModalPres(false)
+    setProductoPres(null)
+    setPresentaciones([])
+    setEditandoPres(null)
+    setErrorPres('')
+  }
+
+  const editarPres = (pres) => {
+    setEditandoPres(pres)
+    setFormPres({
+      nombre: pres.nombre,
+      unidades_por_paquete: String(pres.unidades_por_paquete),
+      precio_venta: String(pres.precio_venta),
+      precio_compra: String(pres.precio_compra),
+      codigo_barras: pres.codigo_barras || '',
+      es_venta_defecto: Boolean(pres.es_venta_defecto),
+      es_compra_defecto: Boolean(pres.es_compra_defecto)
+    })
+    setErrorPres('')
+  }
+
+  const handleSubmitPres = async (e) => {
+    e.preventDefault()
+    setErrorPres('')
+    const payload = {
+      nombre: formPres.nombre.trim(),
+      unidades_por_paquete: Number(formPres.unidades_por_paquete),
+      precio_venta: Number(formPres.precio_venta) || 0,
+      precio_compra: Number(formPres.precio_compra) || 0,
+      codigo_barras: formPres.codigo_barras || null,
+      es_venta_defecto: formPres.es_venta_defecto,
+      es_compra_defecto: formPres.es_compra_defecto
+    }
+    if (!payload.nombre) return setErrorPres('El nombre es obligatorio')
+    if (!payload.unidades_por_paquete || payload.unidades_por_paquete <= 0)
+      return setErrorPres('Las unidades por paquete deben ser > 0')
+
+    try {
+      if (editandoPres) {
+        await api.put(`/productos/${productoPres.id}/presentaciones/${editandoPres.id}`, payload)
+      } else {
+        await api.post(`/productos/${productoPres.id}/presentaciones`, payload)
+      }
+      const { data } = await api.get(`/productos/${productoPres.id}/presentaciones`)
+      setPresentaciones(data)
+      setEditandoPres(null)
+      setFormPres({
+        nombre: '', unidades_por_paquete: '1',
+        precio_venta: '', precio_compra: '',
+        codigo_barras: '', es_venta_defecto: false, es_compra_defecto: false
+      })
+      await cargarDatos()
+    } catch (err) {
+      setErrorPres(err.response?.data?.error || 'Error al guardar presentación')
+    }
+  }
+
+  const eliminarPres = async (presId) => {
+    if (!confirm('¿Eliminar esta presentación?')) return
+    try {
+      await api.delete(`/productos/${productoPres.id}/presentaciones/${presId}`)
+      setPresentaciones(prev => prev.filter(p => p.id !== presId))
+      await cargarDatos()
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error al eliminar')
+    }
+  }
+
   const productosFiltrados = productos.filter(p => {
     const coincideBusqueda =
       p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -124,8 +226,6 @@ const Productos = () => {
       : true
     return coincideBusqueda && coincideCategoria
   })
-
-  const formatGs = n => `Gs. ${Number(n).toLocaleString('es-PY')}`
 
   if (cargando) return (
     <div className="flex justify-center items-center h-64">
@@ -229,6 +329,9 @@ const Productos = () => {
                 <td className="px-4 py-3 text-center">
                 {esAdmin ? (
                   <div className="flex justify-center gap-2">
+                    <button onClick={() => abrirModalPres(p)} className="text-xs text-purple-600 hover:text-purple-800 font-medium">
+                      Presentaciones
+                    </button>
                     <button onClick={() => abrirModal(p)} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
                       Editar
                     </button>
@@ -399,6 +502,182 @@ const Productos = () => {
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal presentaciones */}
+      {modalPres && productoPres && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+
+            <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white">
+              <h2 className="text-lg font-semibold text-gray-800">
+                Presentaciones · {productoPres.nombre}
+              </h2>
+              <button onClick={cerrarModalPres} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+
+            <div className="px-6 py-4 space-y-4">
+
+              {/* Lista de presentaciones */}
+              {presentaciones.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">
+                  Sin presentaciones. Al crear una, será la primera.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {presentaciones.map(pres => (
+                    <div
+                      key={pres.id}
+                      className={`border rounded-xl p-4 ${editandoPres?.id === pres.id ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200'}`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-gray-800">{pres.nombre}</p>
+                            {pres.es_venta_defecto === 1 && (
+                              <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">Venta</span>
+                            )}
+                            {pres.es_compra_defecto === 1 && (
+                              <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">Compra</span>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-500 mt-1 space-y-0.5">
+                            <p>1 {pres.nombre} = {pres.unidades_por_paquete} {productoPres.unidad || 'unidad'}{pres.unidades_por_paquete !== 1 ? 'es' : ''}</p>
+                            <p>Venta: {formatGs(pres.precio_venta)} · Compra: {formatGs(pres.precio_compra)}</p>
+                            {pres.codigo_barras && <p className="font-mono text-xs">Código: {pres.codigo_barras}</p>}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 ml-3">
+                          <button
+                            onClick={() => editarPres(pres)}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => eliminarPres(pres.id)}
+                            className="text-xs text-red-500 hover:text-red-700 font-medium"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Formulario agregar/editar presentación */}
+              <div className="border-t pt-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                  {editandoPres ? 'Editar presentación' : 'Nueva presentación'}
+                </h3>
+                <form onSubmit={handleSubmitPres} className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                      <input
+                        type="text"
+                        value={formPres.nombre}
+                        onChange={e => setFormPres({ ...formPres, nombre: e.target.value })}
+                        placeholder="Ej: Paquete x4, Unidad, etc."
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Unidades por paquete *
+                      </label>
+                      <input
+                        type="number"
+                        value={formPres.unidades_por_paquete}
+                        onChange={e => setFormPres({ ...formPres, unidades_por_paquete: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        min="0.01"
+                        step="0.01"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Código de barras</label>
+                      <input
+                        type="text"
+                        value={formPres.codigo_barras}
+                        onChange={e => setFormPres({ ...formPres, codigo_barras: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Precio venta</label>
+                      <input
+                        type="number"
+                        value={formPres.precio_venta}
+                        onChange={e => setFormPres({ ...formPres, precio_venta: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Precio compra</label>
+                      <input
+                        type="number"
+                        value={formPres.precio_compra}
+                        onChange={e => setFormPres({ ...formPres, precio_compra: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        min="0"
+                      />
+                    </div>
+                    <div className="col-span-2 flex gap-4">
+                      <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formPres.es_venta_defecto}
+                          onChange={e => setFormPres({ ...formPres, es_venta_defecto: e.target.checked })}
+                          className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        Presentación por defecto en ventas
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formPres.es_compra_defecto}
+                          onChange={e => setFormPres({ ...formPres, es_compra_defecto: e.target.checked })}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        Presentación por defecto en compras
+                      </label>
+                    </div>
+                  </div>
+
+                  {errorPres && (
+                    <p className="text-red-500 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                      {errorPres}
+                    </p>
+                  )}
+
+                  <div className="flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => { setEditandoPres(null); setFormPres({
+                        nombre: '', unidades_por_paquete: '1', precio_venta: '', precio_compra: '',
+                        codigo_barras: '', es_venta_defecto: false, es_compra_defecto: false
+                      }); setErrorPres('') }}
+                      className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 font-medium"
+                    >
+                      {editandoPres ? 'Cancelar edición' : 'Limpiar'}
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      {editandoPres ? 'Guardar' : 'Agregar presentación'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+            </div>
           </div>
         </div>
       )}

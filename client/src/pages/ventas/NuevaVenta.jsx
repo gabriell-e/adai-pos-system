@@ -19,6 +19,10 @@ const NuevaVenta = () => {
   const [resultados, setResultados]   = useState([])
   const busquedaRef                   = useRef()
 
+  // Selector de presentación
+  const [showPresSelector, setShowPresSelector] = useState(false)
+  const [productoParaPres, setProductoParaPres] = useState(null)
+
   // Búsqueda cliente
   const [busquedaCliente, setBusquedaCliente] = useState('')
   const [resultadosCliente, setResultadosCliente] = useState([])
@@ -105,17 +109,20 @@ const NuevaVenta = () => {
   }
 
   // ── Carrito ──────────────────────────────────────────────────────────
-  const agregarAlCarrito = (producto) => {
+  const agregarAlCarrito = (producto, presentacion = null) => {
+    const pres = presentacion || producto.presentaciones?.find(p => p.es_venta_defecto === 1)
+
     setCarrito(prev => {
-      const existe = prev.find(i => i.producto_id === producto.id)
+      const key = pres ? `pres_${pres.id}` : `prod_${producto.id}`
+      const existe = prev.find(i => i._key === key)
       if (existe) {
-        if (existe.cantidad >= producto.stock) {
-          setError(`Stock máximo disponible: ${producto.stock}`)
+        if (existe.cantidad >= 999) {
+          setError('Cantidad máxima: 999')
           return prev
         }
         const incremento = producto.unidad === 'kg' || producto.unidad === 'gramo' || producto.unidad === 'litro' ? 0.1 : 1
         return prev.map(i =>
-          i.producto_id === producto.id
+          i._key === key
             ? { ...i, cantidad: Math.round((i.cantidad + incremento) * 100) / 100 }
             : i
         )
@@ -125,19 +132,29 @@ const NuevaVenta = () => {
         return prev
       }
       return [...prev, {
-        producto_id:     producto.id,
-        nombre:          producto.nombre,
-        precio_unitario: producto.precio_venta,
-        tasa_iva:        producto.tasa_iva,
-        stock:           producto.stock,
-        unidad:          producto.unidad || 'unidad',
-        cantidad:        1
+        _key:              key,
+        producto_id:       producto.id,
+        presentation_id:   pres?.id || null,
+        nombre:            producto.nombre,
+        presentacion_nombre: pres?.nombre || null,
+        precio_unitario:   pres?.precio_venta || producto.precio_venta,
+        tasa_iva:          producto.tasa_iva,
+        stock:             producto.stock,
+        unidad:            producto.unidad || 'unidad',
+        cantidad:          1
       }]
     })
     setBusqueda('')
     setResultados([])
     setError('')
+    setShowPresSelector(false)
+    setProductoParaPres(null)
     busquedaRef.current?.focus()
+  }
+
+  const mostrarSelectorPres = (producto) => {
+    setProductoParaPres(producto)
+    setShowPresSelector(true)
   }
 
   const cambiarCantidad = (producto_id, valor) => {
@@ -154,6 +171,19 @@ const NuevaVenta = () => {
 
   const quitarDelCarrito = (producto_id) =>
     setCarrito(prev => prev.filter(i => i.producto_id !== producto_id))
+
+  const cambiarCantidadPres = (key, valor) => {
+    const item = carrito.find(i => i._key === key)
+    if (!item) return
+    const esPeso = item.unidad === 'kg' || item.unidad === 'gramo' || item.unidad === 'litro'
+    const num = esPeso ? parseFloat(valor) : parseInt(valor)
+    if (isNaN(num) || num <= 0) return
+    if (num > 999) return setError('Cantidad máxima: 999')
+    setError('')
+    setCarrito(prev =>
+      prev.map(i => i._key === key ? { ...i, cantidad: num } : i)
+    )
+  }
 
   // ── Cálculos ─────────────────────────────────────────────────────────
   const subtotalBruto = carrito.reduce((acc, i) => acc + i.precio_unitario * i.cantidad, 0)
@@ -186,6 +216,7 @@ const NuevaVenta = () => {
         monto_pagado:    Number(montoPagado) || totalFinal,
         items:           carrito.map(i => ({
           producto_id:     i.producto_id,
+          presentation_id: i.presentation_id,
           cantidad:        i.cantidad,
           precio_unitario: i.precio_unitario
         }))
@@ -227,24 +258,44 @@ const NuevaVenta = () => {
           />
           {resultados.length > 0 && (
             <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg z-20 mt-1 overflow-hidden">
-              {resultados.map(p => (
-                <button
-                  key={p.id}
-                  onClick={() => agregarAlCarrito(p)}
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-emerald-50 transition-colors text-left border-b last:border-0"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{p.nombre}</p>
-                    <p className="text-xs text-gray-400">{p.codigo_barras || 'Sin código'} · IVA {p.tasa_iva}%</p>
+              {resultados.map(p => {
+                const presCount = p.presentaciones?.length || 0
+                const presDefecto = p.presentaciones?.find(pr => pr.es_venta_defecto === 1)
+                return (
+                  <div key={p.id} className="border-b last:border-0">
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-800">{p.nombre}</p>
+                        <p className="text-xs text-gray-400">
+                          {p.codigo_barras || 'Sin código'} · IVA {p.tasa_iva}% · Stock: {p.stock} {p.unidad || 'unidad'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {presCount > 1 ? (
+                          <button
+                            onClick={() => mostrarSelectorPres(p)}
+                            className="text-xs bg-purple-100 text-purple-700 hover:bg-purple-200 px-2 py-1 rounded font-medium"
+                          >
+                            {presCount} pres.
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => agregarAlCarrito(p, presDefecto)}
+                            className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-3 py-1 rounded font-medium"
+                          >
+                            Agregar
+                          </button>
+                        )}
+                        {presDefecto && (
+                          <p className="text-sm font-semibold text-emerald-600 w-20 text-right">
+                            {formatGs(presDefecto.precio_venta)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-emerald-600">{formatGs(p.precio_venta)}</p>
-                    <p className={`text-xs ${p.stock <= p.stock_minimo ? 'text-red-500' : 'text-gray-400'}`}>
-                      Stock: {p.stock}
-                    </p>
-                  </div>
-                </button>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -268,11 +319,13 @@ const NuevaVenta = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {carrito.map(item => (
-                  <tr key={item.producto_id} className="hover:bg-gray-50">
+                  {carrito.map(item => (
+                  <tr key={item._key} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-800">{item.nombre}</p>
                       <p className="text-xs text-gray-400">
+                        {item.presentacion_nombre && <span className="text-purple-600 font-medium">{item.presentacion_nombre}</span>}
+                        {item.presentacion_nombre && <span> · </span>}
                         IVA {item.tasa_iva}% · {item.unidad} ·
                         <span className={item.stock <= 5 ? 'text-red-400' : 'text-gray-400'}>
                           {' '}Disponible: {item.stock}
@@ -286,7 +339,7 @@ const NuevaVenta = () => {
         step={item.unidad === 'kg' || item.unidad === 'gramo' || item.unidad === 'litro' ? '0.1' : '1'}
         onChange={e => cambiarCantidad(item.producto_id, e.target.value)}
         className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-        max={item.stock}
+        max={999}
       />
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-gray-700">
@@ -512,6 +565,41 @@ const NuevaVenta = () => {
                   Crear y seleccionar
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal selector de presentación */}
+      {showPresSelector && productoParaPres && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h2 className="text-lg font-semibold text-gray-800">
+                {productoParaPres.nombre}
+              </h2>
+              <button
+                onClick={() => { setShowPresSelector(false); setProductoParaPres(null) }}
+                className="text-gray-400 hover:text-gray-600 text-xl"
+              >✕</button>
+            </div>
+            <div className="px-6 py-4 space-y-2">
+              <p className="text-sm text-gray-500 mb-2">Seleccioná una presentación:</p>
+              {productoParaPres.presentaciones?.map(pres => (
+                <button
+                  key={pres.id}
+                  onClick={() => agregarAlCarrito(productoParaPres, pres)}
+                  className="w-full flex items-center justify-between border border-gray-200 rounded-xl px-4 py-3 hover:border-emerald-400 hover:bg-emerald-50 transition-colors text-left"
+                >
+                  <div>
+                    <p className="font-medium text-gray-800">{pres.nombre}</p>
+                    <p className="text-xs text-gray-400">
+                      {pres.unidades_por_paquete} {productoParaPres.unidad || 'unidad'}{pres.unidades_por_paquete !== 1 ? 'es' : ''} · Stock: {productoParaPres.stock}
+                    </p>
+                  </div>
+                  <p className="text-sm font-semibold text-emerald-600">{formatGs(pres.precio_venta)}</p>
+                </button>
+              ))}
             </div>
           </div>
         </div>
