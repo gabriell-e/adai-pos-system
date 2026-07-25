@@ -115,10 +115,40 @@ const update = (req, res) => {
 
 const remove = (req, res) => {
   try {
-    const result = db.prepare(`
-      DELETE FROM presentaciones_producto WHERE id = ? AND producto_id = ?
-    `).run(req.params.id, req.params.productoId)
-    if (result.changes === 0) return res.status(404).json({ error: 'Presentación no encontrada' })
+    const presentacion = db.prepare(`
+      SELECT * FROM presentaciones_producto WHERE id = ? AND producto_id = ?
+    `).get(req.params.id, req.params.productoId)
+    if (!presentacion) return res.status(404).json({ error: 'Presentación no encontrada' })
+
+    const totalPres = db.prepare(
+      'SELECT COUNT(*) AS total FROM presentaciones_producto WHERE producto_id = ?'
+    ).get(req.params.productoId)
+
+    if (totalPres.total <= 1)
+      return res.status(400).json({ error: 'No se puede eliminar: el producto debe tener al menos una presentación' })
+
+    const eliminar = db.transaction(() => {
+      db.prepare('DELETE FROM presentaciones_producto WHERE id = ?').run(req.params.id)
+
+      if (presentacion.es_venta_defecto) {
+        const otra = db.prepare(
+          'SELECT id FROM presentaciones_producto WHERE producto_id = ? LIMIT 1'
+        ).get(req.params.productoId)
+        if (otra) {
+          db.prepare('UPDATE presentaciones_producto SET es_venta_defecto = 1 WHERE id = ?').run(otra.id)
+        }
+      }
+
+      if (presentacion.es_compra_defecto) {
+        const otra = db.prepare(
+          'SELECT id FROM presentaciones_producto WHERE producto_id = ? LIMIT 1'
+        ).get(req.params.productoId)
+        if (otra) {
+          db.prepare('UPDATE presentaciones_producto SET es_compra_defecto = 1 WHERE id = ?').run(otra.id)
+        }
+      }
+    })()
+
     res.json({ mensaje: 'Presentación eliminada' })
   } catch (err) {
     res.status(500).json({ error: err.message })

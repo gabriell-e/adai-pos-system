@@ -126,11 +126,12 @@ const crear = (req, res) => {
         let productoId = item.producto_id
         let presentacionId = item.presentation_id || null
         let unidadesPorPaquete = 1
+        let costoUnitarioBase = 0
 
         // Si se especificó presentation_id, resolver desde la presentación
         if (presentacionId) {
           const pres = db.prepare(`
-            SELECT pp.*, p.tasa_iva, p.stock, p.nombre, p.unidad_base, p.precio_compra
+            SELECT pp.*, p.tasa_iva, p.stock, p.nombre, p.unidad_base
             FROM presentaciones_producto pp
             JOIN productos p ON p.id = pp.producto_id
             WHERE pp.id = ? AND p.activo = 1
@@ -139,6 +140,7 @@ const crear = (req, res) => {
             throw new Error(`Presentación ID ${presentacionId} no encontrada`)
           productoId = pres.producto_id
           unidadesPorPaquete = pres.unidades_por_paquete
+          costoUnitarioBase = pres.precio_compra / pres.unidades_por_paquete
           item.producto_id = productoId
           // Usar tasa_iva del producto base
           item.tasa_iva = pres.tasa_iva
@@ -158,12 +160,15 @@ const crear = (req, res) => {
             throw new Error(`Producto ID ${item.producto_id} no encontrado o inactivo`)
 
           const presDefecto = db.prepare(`
-            SELECT id, unidades_por_paquete FROM presentaciones_producto
+            SELECT id, unidades_por_paquete, precio_compra FROM presentaciones_producto
             WHERE producto_id = ? AND es_venta_defecto = 1 LIMIT 1
           `).get(producto.id)
           if (presDefecto) {
             presentacionId = presDefecto.id
             unidadesPorPaquete = presDefecto.unidades_por_paquete
+            costoUnitarioBase = presDefecto.precio_compra / presDefecto.unidades_por_paquete
+          } else {
+            costoUnitarioBase = producto.precio_compra
           }
 
           const stockReal = producto.stock
@@ -198,7 +203,7 @@ const crear = (req, res) => {
           cantidad:                 item.cantidad,
           unidades_por_paquete:     unidadesPorPaquete,
           precio_unitario:          item.precio_unitario,
-          precio_compra_unitario:   producto.precio_compra,
+          precio_compra_unitario:   costoUnitarioBase,
           tasa_iva:                 producto.tasa_iva,
           monto_iva:                iva,
           subtotal
