@@ -250,15 +250,16 @@ const Reportes = () => {
             </div>
           </div>
 
-          {/* Resumen */}
+          {/* Resumen - Stock Valorizado */}
           {inventarioData?.resumen && (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
               {[
-                { label: 'Productos',       value: inventarioData.resumen.total_productos, color: 'text-blue-600' },
-                { label: 'Unidades',        value: inventarioData.resumen.total_unidades, color: 'text-gray-700' },
-                { label: 'Valor compra',    value: formatGs(inventarioData.resumen.valor_compra_total), color: 'text-orange-600' },
-                { label: 'Valor venta',     value: formatGs(inventarioData.resumen.valor_venta_total), color: 'text-emerald-600' },
-                { label: 'Stock bajo',      value: inventarioData.resumen.stock_bajo, color: 'text-red-500' },
+                { label: 'Productos',         value: inventarioData.resumen.total_productos, color: 'text-blue-600' },
+                { label: 'Unidades',          value: inventarioData.resumen.total_unidades, color: 'text-gray-700' },
+                { label: 'Costo total',       value: formatGs(inventarioData.resumen.valor_compra_total), color: 'text-orange-600' },
+                { label: 'Valor de venta',    value: formatGs(inventarioData.resumen.valor_venta_total), color: 'text-blue-600' },
+                { label: 'Ganancia potencial', value: formatGs(inventarioData.resumen.valor_venta_total - inventarioData.resumen.valor_compra_total), color: 'text-emerald-700' },
+                { label: 'Stock bajo',        value: inventarioData.resumen.stock_bajo, color: 'text-red-500' },
               ].map(card => (
                 <div key={card.label} className="bg-white rounded-xl shadow-sm p-4">
                   <p className="text-xs text-gray-500">{card.label}</p>

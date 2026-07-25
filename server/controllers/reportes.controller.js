@@ -120,14 +120,17 @@ const inventarioExcel = (req, res) => {
 
     // Hoja de resumen
     const activos = productos.filter(p => p['Estado'] === 'Activo')
+    const costoTotal = activos.reduce((a, p) => a + p['Valor Compra'], 0)
+    const ventaTotal = activos.reduce((a, p) => a + p['Valor Venta'], 0)
     const resumen = [[
-      ['REPORTE DE INVENTARIO'],
+      ['REPORTE DE INVENTARIO - STOCK VALORIZADO'],
       ['Fecha', new Date().toLocaleDateString('es-PY')],
       [''],
       ['Total productos', activos.length],
       ['Stock bajo', activos.filter(p => p['Stock Actual'] <= p['Stock Mínimo']).length],
-      ['Valor compra total', activos.reduce((a, p) => a + p['Valor Compra'], 0)],
-      ['Valor venta total', activos.reduce((a, p) => a + p['Valor Venta'], 0)],
+      ['Costo total (inversión)', costoTotal],
+      ['Valor de venta total', ventaTotal],
+      ['Ganancia potencial', ventaTotal - costoTotal],
     ]]
 
     const wb = XLSX.utils.book_new()
