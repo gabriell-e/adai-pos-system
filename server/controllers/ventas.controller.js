@@ -124,7 +124,7 @@ const getById = (req, res) => {
 const crear = (req, res) => {
   const {
     cliente_id, usuario_id, condicion_venta,
-    tipo_pago, descuento, monto_pagado, orden_nro, items
+    tipo_pago, descuento, monto_pagado, orden_nro, items, pago_detalle
   } = req.body
 
   if (!items || items.length === 0)
@@ -262,8 +262,8 @@ const crear = (req, res) => {
           numero_factura, timbrado_id, cliente_id, usuario_id,
           condicion_venta, tipo_pago,
           subtotal_gravado_10, subtotal_gravado_5, subtotal_exento,
-          iva_10, iva_5, descuento, total, monto_pagado, vuelto, orden_nro, creado_en
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          iva_10, iva_5, descuento, total, monto_pagado, vuelto, orden_nro, pago_detalle, creado_en
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         numero_factura,
         config?.id  || null,
@@ -281,6 +281,7 @@ const crear = (req, res) => {
         monto_pagado || 0,
         vuelto,
         orden_nro || null,
+        pago_detalle ? JSON.stringify(pago_detalle) : null,
         ahora()
       )
 

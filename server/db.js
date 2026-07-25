@@ -192,6 +192,7 @@ const init = () => {
   try { db.exec("ALTER TABLE detalle_compra ADD COLUMN presentacion_id INTEGER REFERENCES presentaciones_producto(id)") } catch (_) {}
   try { db.exec("ALTER TABLE ventas ADD COLUMN fiado_pagada INTEGER DEFAULT 0") } catch (_) {}
   try { db.exec("ALTER TABLE ventas ADD COLUMN cobrado_en DATETIME") } catch (_) {}
+  try { db.exec("ALTER TABLE ventas ADD COLUMN pago_detalle TEXT") } catch (_) {}
 
   console.log('✅ Base de datos inicializada')
 }

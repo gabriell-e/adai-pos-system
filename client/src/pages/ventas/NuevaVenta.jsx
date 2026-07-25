@@ -40,6 +40,11 @@ const NuevaVenta = () => {
   const [error, setError]             = useState('')
   const [cargando, setCargando]       = useState(false)
 
+  // Pago mixto
+  const [pagoDetalle, setPagoDetalle] = useState([])
+  const [nuevoPagoTipo, setNuevoPagoTipo] = useState('efectivo')
+  const [nuevoPagoMonto, setNuevoPagoMonto] = useState('')
+
   useEffect(() => {
     const cargarDatos = async () => {
       const [prodRes, cliRes, cajaRes] = await Promise.all([
@@ -215,6 +220,33 @@ const NuevaVenta = () => {
     ? Math.max(0, Math.round(Number(montoPagado) - totalFinal))
     : 0
 
+  // Pago mixto helpers
+  const totalMixtoPagado = pagoDetalle.reduce((a, p) => a + p.monto, 0)
+  const faltanteMixto    = totalFinal - totalMixtoPagado
+
+  const agregarPagoMixto = () => {
+    const monto = Number(nuevoPagoMonto)
+    if (!monto || monto <= 0) return
+    if (totalMixtoPagado + monto > totalFinal) {
+      setError('El monto excede el total de la venta')
+      return
+    }
+    setPagoDetalle(prev => [...prev, { tipo: nuevoPagoTipo, monto }])
+    setNuevoPagoMonto('')
+    setError('')
+  }
+
+  const quitarPagoMixto = (index) =>
+    setPagoDetalle(prev => prev.filter((_, i) => i !== index))
+
+  // Resetear pagoDetalle al cambiar tipo de pago
+  useEffect(() => {
+    if (tipoPago !== 'mixto') {
+      setPagoDetalle([])
+      setNuevoPagoMonto('')
+    }
+  }, [tipoPago])
+
   // condición se deriva del tipo de pago
   const condicion = tipoPago === 'fiado' ? 'credito' : 'contado'
 
@@ -227,23 +259,29 @@ const NuevaVenta = () => {
       return setError('Venta fiada requiere un cliente')
     if (tipoPago === 'efectivo' && montoPagado && Number(montoPagado) < totalFinal)
       return setError('El monto recibido es menor al total')
+    if (tipoPago === 'mixto' && totalMixtoPagado < totalFinal)
+      return setError(`Faltan ${formatGs(totalFinal - totalMixtoPagado)} para completar el total`)
 
     setCargando(true)
     try {
-      const { data } = await api.post('/ventas', {
+      const payload = {
         usuario_id:      usuario.id,
         cliente_id:      clienteSeleccionado?.id || null,
         condicion_venta: condicion,
         tipo_pago:       tipoPago,
         descuento:       Number(descuento) || 0,
-        monto_pagado:    Number(montoPagado) || totalFinal,
+        monto_pagado:    tipoPago === 'mixto' ? totalMixtoPagado : Number(montoPagado) || totalFinal,
         items:           carrito.map(i => ({
           producto_id:     i.producto_id,
           presentation_id: i.presentation_id,
           cantidad:        i.cantidad,
           precio_unitario: i.precio_unitario
         }))
-      })
+      }
+      if (tipoPago === 'mixto') {
+        payload.pago_detalle = pagoDetalle
+      }
+      const { data } = await api.post('/ventas', payload)
       navigate(`/ventas/${data.venta_id}`)
     } catch (err) {
       setError(err.response?.data?.error || 'Error al registrar la venta')
@@ -505,6 +543,50 @@ const NuevaVenta = () => {
             </div>
           )}
 
+          {tipoPago === 'mixto' && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-600">Medios de pago:</p>
+
+              {pagoDetalle.length > 0 && (
+                <div className="space-y-1.5">
+                  {pagoDetalle.map((p, i) => (
+                    <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-sm">
+                      <span className="capitalize text-gray-700">{p.tipo}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{formatGs(p.monto)}</span>
+                        <button onClick={() => quitarPagoMixto(i)} className="text-gray-400 hover:text-red-500 text-xs">✕</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-2 items-end">
+                <select value={nuevoPagoTipo} onChange={e => setNuevoPagoTipo(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                  <option value="efectivo">Efectivo</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="qr">QR</option>
+                  <option value="debito">Débito</option>
+                </select>
+                <input type="number" value={nuevoPagoMonto}
+                  onChange={e => setNuevoPagoMonto(e.target.value)}
+                  placeholder={String(Math.max(0, faltanteMixto))}
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  min="0" />
+                <button onClick={agregarPagoMixto}
+                  className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-sm font-medium px-3 py-2 rounded-lg transition-colors">
+                  +
+                </button>
+              </div>
+
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Pagado: <span className="font-medium text-emerald-600">{formatGs(totalMixtoPagado)}</span></span>
+                <span>Falta: <span className={`font-medium ${faltanteMixto > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{formatGs(Math.max(0, faltanteMixto))}</span></span>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Descuento (Gs.)</label>
             <input
@@ -533,6 +615,12 @@ const NuevaVenta = () => {
             <div className="flex justify-between text-blue-600 font-medium">
               <span>Vuelto</span>
               <span>{formatGs(vuelto)}</span>
+            </div>
+          )}
+          {tipoPago === 'mixto' && totalMixtoPagado >= totalFinal && (
+            <div className="flex justify-between text-blue-600 font-medium">
+              <span>Vuelto</span>
+              <span>{formatGs(totalMixtoPagado - totalFinal)}</span>
             </div>
           )}
         </div>

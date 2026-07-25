@@ -15,6 +15,7 @@ import Ventas   from './pages/ventas/Ventas'
 import Compras  from './pages/compras/Compras'
 import Caja     from './pages/caja/Caja'
 import Dashboard      from './pages/dashboard/Dashboard'
+import Reportes       from './pages/reportes/Reportes'
 import Configuracion  from './pages/configuracion/Configuracion'
 
 const App = () => (
@@ -40,6 +41,7 @@ const App = () => (
                 <Route path="/consumo"     element={<Consumo />} />
                 <Route path="/usuarios"    element={<Usuarios />} />
                 <Route path="/caja"         element={<Caja />} />
+                <Route path="/reportes"    element={<Reportes />} />
                 <Route path="/configuracion" element={<Configuracion />} />
               </Routes>
             </Layout>

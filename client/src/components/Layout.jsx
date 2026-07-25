@@ -14,6 +14,7 @@ const navItems = [
   { path: '/consumo',          label: 'Consumo',      icon: '📥', rol: 'admin' },
   { path: '/usuarios',         label: 'Usuarios',     icon: '👤', rol: 'admin' },
   { path: '/caja',             label: 'Caja',         icon: '💰', rol: 'ambos' },
+  { path: '/reportes',         label: 'Reportes',     icon: '📊', rol: 'admin' },
   { path: '/configuracion',    label: 'Configuración',icon: '⚙️',  rol: 'admin' },
 ]
 
