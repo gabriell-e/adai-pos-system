@@ -22,13 +22,13 @@ const Dashboard = () => {
 
   useEffect(() => {
     const cargar = async () => {
-      const [ventasRes, cliRes, stockRes, cajaRes] = await Promise.all([
-        api.get('/ventas'),
+      const [ventasHoyRes, cliRes, stockRes, cajaRes] = await Promise.all([
+        api.get('/ventas/hoy'),
         api.get('/clientes'),
         api.get('/productos/low-stock'),
         api.get('/caja/activa').catch(() => ({ data: null }))
       ])
-      setVentas(ventasRes.data)
+      setVentas(ventasHoyRes.data)
       setClientes(cliRes.data)
       setLowStock(stockRes.data)
       setCajaActiva(cajaRes.data)
@@ -46,6 +46,8 @@ const Dashboard = () => {
   const ventasFiado = ventasHoy.filter(v => v.tipo_pago === 'fiado' && !v.fiado_pagada)
   const fiadoPendiente = ventasFiado.reduce((acc, v) => acc + v.total, 0)
 
+  const gananciaNetaHoy = ventasHoy.reduce((acc, v) => acc + (v.total - (v.costo_total || 0)), 0)
+
   const ventasPorTipo = [
     { tipo: 'efectivo', total: ventasHoy.filter(v => v.tipo_pago === 'efectivo').reduce((a, v) => a + v.total, 0) },
     { tipo: 'transferencia', total: ventasHoy.filter(v => v.tipo_pago === 'transferencia').reduce((a, v) => a + v.total, 0) },
@@ -54,7 +56,7 @@ const Dashboard = () => {
     { tipo: 'fiado', total: ventasHoy.filter(v => v.tipo_pago === 'fiado').reduce((a, v) => a + v.total, 0) },
   ].filter(t => t.total > 0)
 
-  const ultimasVentas = ventas.filter(v => v.estado === 'completada').slice(0, 5)
+  const ultimasVentas = ventasHoy.slice(0, 8)
 
   if (cargando) return (
     <div className="flex justify-center items-center h-64">
@@ -101,7 +103,7 @@ const Dashboard = () => {
         <Stat label="Ventas hoy" valor={ventasHoy.length} sub={`Total: ${formatGs(totalHoy)}`} color="text-emerald-600" />
         <Stat label="Ticket promedio" valor={ventasHoy.length > 0 ? formatGs(Math.round(totalHoy / ventasHoy.length)) : '—'} sub="Por venta" />
         <Stat label="Fiado pendiente" valor={formatGs(fiadoPendiente)} sub={`${ventasFiado.length} ventas sin cobrar`} color={fiadoPendiente > 0 ? 'text-amber-600' : 'text-gray-800'} />
-        <Stat label="Clientes registrados" valor={clientes.length} sub={clientes.filter(c => c.deuda_total > 0).length + ' con deuda'} />
+        <Stat label="Ganancia neta hoy" valor={formatGs(gananciaNetaHoy)} sub="Ventas - Costos" color={gananciaNetaHoy >= 0 ? 'text-emerald-600' : 'text-red-600'} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

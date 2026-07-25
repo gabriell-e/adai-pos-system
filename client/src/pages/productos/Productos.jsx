@@ -281,6 +281,7 @@ const Productos = () => {
               <th className="px-4 py-3 text-left">Categoría</th>
               <th className="px-4 py-3 text-right">P. Compra</th>
               <th className="px-4 py-3 text-right">P. Venta</th>
+              <th className="px-4 py-3 text-right">Margen</th>
               <th className="px-4 py-3 text-center">Stock</th>
               <th className="px-4 py-3 text-center">IVA</th>
               <th className="px-4 py-3 text-center">Estado</th>
@@ -307,6 +308,21 @@ const Productos = () => {
                 </td>
                 <td className="px-4 py-3 text-right text-gray-600">{formatGs(p.precio_compra)}</td>
                 <td className="px-4 py-3 text-right font-medium text-gray-800">{formatGs(p.precio_venta)}</td>
+                <td className="px-4 py-3 text-right">
+                  {p.precio_compra > 0 ? (
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                      ((p.precio_venta - p.precio_compra) / p.precio_compra * 100) >= 20
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : ((p.precio_venta - p.precio_compra) / p.precio_compra * 100) >= 10
+                          ? 'bg-yellow-100 text-yellow-700'
+                          : 'bg-red-100 text-red-600'
+                    }`}>
+                      {((p.precio_venta - p.precio_compra) / p.precio_compra * 100).toFixed(0)}%
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-300">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-center">
                   <span className={`
                     inline-block px-2 py-0.5 rounded-full text-xs font-medium

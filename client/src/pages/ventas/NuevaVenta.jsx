@@ -17,6 +17,7 @@ const NuevaVenta = () => {
   // Búsqueda producto
   const [busqueda, setBusqueda]       = useState('')
   const [resultados, setResultados]   = useState([])
+  const [selectedIndex, setSelectedIndex] = useState(-1)
   const busquedaRef                   = useRef()
 
   // Selector de presentación
@@ -55,7 +56,7 @@ const NuevaVenta = () => {
 
   // ── Búsqueda de productos ────────────────────────────────────────────
   useEffect(() => {
-    if (!busqueda.trim()) return setResultados([])
+    if (!busqueda.trim()) { setResultados([]); setSelectedIndex(-1); return }
     const lower = busqueda.toLowerCase()
     setResultados(
       productos.filter(p =>
@@ -63,7 +64,29 @@ const NuevaVenta = () => {
         p.codigo_barras?.includes(busqueda)
       ).slice(0, 6)
     )
+    setSelectedIndex(-1)
   }, [busqueda, productos])
+
+  const handleProductoKeyDown = (e) => {
+    if (resultados.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setSelectedIndex(prev => prev < resultados.length - 1 ? prev + 1 : 0)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setSelectedIndex(prev => prev > 0 ? prev - 1 : resultados.length - 1)
+    } else if (e.key === 'Enter' && selectedIndex >= 0) {
+      e.preventDefault()
+      const p = resultados[selectedIndex]
+      const presCount = p.presentaciones?.length || 0
+      if (presCount > 1) {
+        mostrarSelectorPres(p)
+      } else {
+        const presDefecto = p.presentaciones?.find(pr => pr.es_venta_defecto === 1)
+        agregarAlCarrito(p, presDefecto)
+      }
+    }
+  }
 
   // ── Búsqueda de clientes ─────────────────────────────────────────────
   useEffect(() => {
@@ -253,16 +276,18 @@ const NuevaVenta = () => {
             placeholder="🔍  Nombre o código de barras..."
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
+            onKeyDown={handleProductoKeyDown}
             className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
             autoFocus
           />
           {resultados.length > 0 && (
             <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg z-20 mt-1 overflow-hidden">
-              {resultados.map(p => {
+              {resultados.map((p, idx) => {
                 const presCount = p.presentaciones?.length || 0
                 const presDefecto = p.presentaciones?.find(pr => pr.es_venta_defecto === 1)
+                const isSelected = idx === selectedIndex
                 return (
-                  <div key={p.id} className="border-b last:border-0">
+                  <div key={p.id} className={`border-b last:border-0 ${isSelected ? 'bg-emerald-50' : ''}`}>
                     <div className="flex items-center justify-between px-4 py-3">
                       <div className="flex-1">
                         <p className="text-sm font-medium text-gray-800">{p.nombre}</p>
@@ -378,6 +403,9 @@ const NuevaVenta = () => {
                 {clienteSeleccionado.ruc_ci && (
                   <p className="text-xs text-emerald-600">{clienteSeleccionado.ruc_ci}</p>
                 )}
+                {clienteSeleccionado.deuda_total > 0 && (
+                  <p className="text-xs text-amber-600 font-medium">Deuda: {formatGs(clienteSeleccionado.deuda_total)}</p>
+                )}
               </div>
               <button onClick={limpiarCliente} className="text-emerald-400 hover:text-emerald-600 text-lg">✕</button>
             </div>
@@ -402,8 +430,15 @@ const NuevaVenta = () => {
                       onClick={() => seleccionarCliente(c)}
                       className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-emerald-50 text-left border-b last:border-0"
                     >
-                      <p className="text-sm font-medium text-gray-800">{c.nombre}</p>
-                      {c.ruc_ci && <p className="text-xs text-gray-400">{c.ruc_ci}</p>}
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{c.nombre}</p>
+                        {c.ruc_ci && <p className="text-xs text-gray-400">{c.ruc_ci}</p>}
+                      </div>
+                      {c.deuda_total > 0 && (
+                        <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                          Deuda: {formatGs(c.deuda_total)}
+                        </span>
+                      )}
                     </button>
                   ))}
                   {/* Opción crear si no hay resultados */}

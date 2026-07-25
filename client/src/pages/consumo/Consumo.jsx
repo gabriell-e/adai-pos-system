@@ -2,7 +2,14 @@ import { useState, useEffect, useRef } from 'react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
 
-const formatGs = n => `Gs. ${Number(n).toLocaleString('es-PY')}`
+const formatGs = n => `Gs. ${Number(n || 0).toLocaleString('es-PY')}`
+
+const Stat = ({ label, valor, color = 'text-gray-800' }) => (
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <p className="text-xs text-gray-500 mb-1">{label}</p>
+    <p className={`text-lg font-bold ${color}`}>{valor}</p>
+  </div>
+)
 
 const Consumo = () => {
   const { usuario } = useAuth()
@@ -20,6 +27,8 @@ const Consumo = () => {
   const [cantidad, setCantidad]         = useState('')
   const [motivo, setMotivo]             = useState('')
   const [enviando, setEnviando]         = useState(false)
+
+  const [filtroFecha, setFiltroFecha]   = useState('todos')
 
   const cargarDatos = async () => {
     try {
@@ -108,6 +117,35 @@ const Consumo = () => {
     return `${n.toFixed(2)} ${u === 'kg' ? 'kg' : u === 'litro' ? 'L' : 'g'}`
   }
 
+  // ── Cálculos por período ──────────────────────────────────────────
+  const filtrarPorPeriodo = (lista, periodo) => {
+    const ahora = new Date()
+    if (periodo === 'hoy') {
+      const hoy = ahora.toLocaleDateString('es-PY')
+      return lista.filter(c => new Date(c.creado_en).toLocaleDateString('es-PY') === hoy)
+    }
+    if (periodo === 'semana') {
+      const inicio = new Date(ahora)
+      inicio.setDate(ahora.getDate() - ahora.getDay())
+      inicio.setHours(0, 0, 0, 0)
+      return lista.filter(c => new Date(c.creado_en) >= inicio)
+    }
+    if (periodo === 'mes') {
+      const inicio = new Date(ahora.getFullYear(), ahora.getMonth(), 1)
+      return lista.filter(c => new Date(c.creado_en) >= inicio)
+    }
+    return lista
+  }
+
+  const consumosHoy = filtrarPorPeriodo(consumos, 'hoy')
+  const consumosSemana = filtrarPorPeriodo(consumos, 'semana')
+  const consumosMes = filtrarPorPeriodo(consumos, 'mes')
+
+  const perdida = (lista) => lista.reduce((acc, c) => acc + (c.producto_precio_venta || 0) * c.cantidad, 0)
+  const costo = (lista) => lista.reduce((acc, c) => acc + (c.producto_precio_compra || 0) * c.cantidad, 0)
+
+  const consumosFiltrados = filtrarPorPeriodo(consumos, filtroFecha)
+
   if (cargando) return (
     <div className="flex justify-center items-center h-64">
       <p className="text-gray-400">Cargando...</p>
@@ -117,12 +155,24 @@ const Consumo = () => {
   return (
     <div className="flex gap-6 h-full">
 
-      {/* ── Columna izquierda: formulario ── */}
+      {/* ── Columna izquierda: formulario + stats ── */}
       <div className="flex-1 flex flex-col gap-4">
 
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Consumo Propio</h1>
           <p className="text-sm text-gray-500 mt-0.5">Registrá productos retirados para uso interno</p>
+        </div>
+
+        {/* Stats de pérdida */}
+        <div className="grid grid-cols-3 gap-3">
+          <Stat label="Pérdida hoy" valor={formatGs(perdida(consumosHoy))} color="text-red-600" />
+          <Stat label="Pérdida semana" valor={formatGs(perdida(consumosSemana))} color="text-orange-600" />
+          <Stat label="Pérdida mes" valor={formatGs(perdida(consumosMes))} color="text-red-700" />
+        </div>
+        <div className="grid grid-cols-3 gap-3 -mt-2">
+          <Stat label="Costo hoy" valor={formatGs(costo(consumosHoy))} color="text-gray-600" />
+          <Stat label="Costo semana" valor={formatGs(costo(consumosSemana))} color="text-gray-600" />
+          <Stat label="Costo mes" valor={formatGs(costo(consumosMes))} color="text-gray-600" />
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-5 space-y-4">
@@ -224,45 +274,65 @@ const Consumo = () => {
 
         {/* ── Historial ── */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-700">Historial de consumos</h2>
+            <select
+              value={filtroFecha}
+              onChange={e => setFiltroFecha(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="todos">Todos</option>
+              <option value="hoy">Hoy</option>
+              <option value="semana">Esta semana</option>
+              <option value="mes">Este mes</option>
+            </select>
           </div>
-          {consumos.length === 0 ? (
+          {consumosFiltrados.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 text-gray-300">
-              <p className="text-sm">No hay consumos registrados</p>
+              <p className="text-sm">No hay consumos en este período</p>
             </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
-                <tr>
-                  <th className="px-4 py-3 text-left">Producto</th>
-                  <th className="px-4 py-3 text-center">Cantidad</th>
-                  <th className="px-4 py-3 text-left">Motivo</th>
-                  <th className="px-4 py-3 text-left">Registró</th>
-                  <th className="px-4 py-3 text-left">Fecha</th>
-                  <th className="px-4 py-3 text-center w-20"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {consumos.map(c => (
-                  <tr key={c.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-800">{c.producto_nombre}</td>
-                    <td className="px-4 py-3 text-center">{formatCantidad(c)}</td>
-                    <td className="px-4 py-3 text-gray-500">{c.motivo || <span className="text-gray-300">—</span>}</td>
-                    <td className="px-4 py-3 text-gray-500">{c.usuario_nombre || <span className="text-gray-300">—</span>}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{c.creado_en}</td>
-                    <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => anular(c.id)}
-                        className="text-xs text-red-500 hover:text-red-700 font-medium"
-                      >
-                        Anular
-                      </button>
-                    </td>
+            <>
+              <div className="px-5 py-2 bg-gray-50 border-b flex items-center justify-between text-xs">
+                <span className="text-gray-500">{consumosFiltrados.length} registros</span>
+                <span className="font-semibold text-red-600">Pérdida: {formatGs(perdida(consumosFiltrados))}</span>
+              </div>
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Producto</th>
+                    <th className="px-4 py-3 text-center">Cantidad</th>
+                    <th className="px-4 py-3 text-right">P. Venta</th>
+                    <th className="px-4 py-3 text-right">Pérdida</th>
+                    <th className="px-4 py-3 left">Motivo</th>
+                    <th className="px-4 py-3 text-left">Fecha</th>
+                    <th className="px-4 py-3 text-center w-20"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {consumosFiltrados.map(c => (
+                    <tr key={c.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium text-gray-800">{c.producto_nombre}</td>
+                      <td className="px-4 py-3 text-center">{formatCantidad(c)}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{formatGs(c.producto_precio_venta)}</td>
+                      <td className="px-4 py-3 text-right font-medium text-red-600">
+                        {formatGs((c.producto_precio_venta || 0) * c.cantidad)}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">{c.motivo || <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{c.creado_en}</td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => anular(c.id)}
+                          className="text-xs text-red-500 hover:text-red-700 font-medium"
+                        >
+                          Anular
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
 

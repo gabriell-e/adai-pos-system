@@ -29,10 +29,11 @@ const Ventas = () => {
 
   useEffect(() => { cargar() }, [])
 
-  const cobrarFiado = async (id) => {
-    if (!confirm('¿Marcar esta venta fiada como cobrada?')) return
+  const cobrarFiado = async (venta) => {
+    const confirmText = `¿Cobrar venta fiada?\n\nCliente: ${venta.cliente_nombre || 'Sin cliente'}\nMonto: ${formatGs(venta.total)}\n\n¿Confirmar cobro?`
+    if (!confirm(confirmText)) return
     try {
-      await api.patch(`/ventas/${id}/cobrar`)
+      await api.patch(`/ventas/${venta.id}/cobrar`)
       await cargar()
     } catch (err) {
       alert(err.response?.data?.error || 'Error al cobrar')
@@ -173,7 +174,7 @@ const Ventas = () => {
                     <div className="flex justify-center gap-2">
                       <Link to={`/ventas/${v.id}`} className="text-xs text-blue-600 hover:text-blue-800 font-medium">Ver</Link>
                       {esAdmin && v.tipo_pago === 'fiado' && !v.fiado_pagada && v.estado === 'completada' && (
-                        <button onClick={() => cobrarFiado(v.id)} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">
+                        <button onClick={() => cobrarFiado(v)} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">
                           Cobrar
                         </button>
                       )}

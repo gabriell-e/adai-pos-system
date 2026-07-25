@@ -216,6 +216,17 @@ const Compras = () => {
                   </td>
                 </tr>
               ))}
+              {compras.length > 0 && (
+                <tr className="bg-gray-50 font-semibold">
+                  <td colSpan={2} className="px-4 py-3 text-right text-sm text-gray-700">
+                    Total ({compras.filter(c => c.estado === 'recibida').length} compras activas)
+                  </td>
+                  <td className="px-4 py-3 text-right text-sm text-emerald-700">
+                    {formatGs(compras.filter(c => c.estado === 'recibida').reduce((acc, c) => acc + c.total, 0))}
+                  </td>
+                  <td colSpan={3}></td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
