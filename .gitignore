@@ -176,6 +176,11 @@ out/
 *.db-journal
 *.db-wal
 *.db-shm
+*.db.bak
+
+# Archivos de backup/distribucion
+server.zip
+instalacion.html
 
 # Variables de Entorno
 .env

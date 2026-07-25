@@ -4,12 +4,14 @@ const JWT_SECRET = process.env.JWT_SECRET || 'adai_secret_dev'
 const verificarToken = (req, res, next) => {
   const authHeader = req.headers['authorization']
   const token = authHeader && authHeader.split(' ')[1] // Bearer <token>
+  const queryToken = req.query.token
+  const finalToken = token || queryToken
 
-  if (!token)
+  if (!finalToken)
     return res.status(401).json({ error: 'Token requerido' })
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET)
+    const decoded = jwt.verify(finalToken, JWT_SECRET)
     req.usuario = decoded
     next()
   } catch (err) {
