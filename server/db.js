@@ -173,6 +173,15 @@ const init = () => {
       estado TEXT CHECK(estado IN ('abierta', 'cerrada')) DEFAULT 'abierta'
     );
 
+    CREATE TABLE IF NOT EXISTS consumo_propio (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      producto_id INTEGER NOT NULL REFERENCES productos(id),
+      usuario_id INTEGER REFERENCES usuarios(id),
+      cantidad REAL NOT NULL,
+      motivo TEXT,
+      creado_en DATETIME DEFAULT (datetime('now', 'localtime'))
+    );
+
   `)
 
   // Migraciones para bases de datos existentes

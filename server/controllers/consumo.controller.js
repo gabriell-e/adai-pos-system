@@ -6,9 +6,11 @@ const getAll = (req, res) => {
     const consumos = db.prepare(`
       SELECT
         c.*,
-        p.nombre   AS producto_nombre,
-        p.unidad   AS producto_unidad,
-        u.nombre   AS usuario_nombre
+        p.nombre        AS producto_nombre,
+        p.unidad        AS producto_unidad,
+        p.precio_venta  AS producto_precio_venta,
+        p.precio_compra AS producto_precio_compra,
+        u.nombre        AS usuario_nombre
       FROM consumo_propio c
       JOIN productos p ON c.producto_id = p.id
       LEFT JOIN usuarios u ON c.usuario_id = u.id

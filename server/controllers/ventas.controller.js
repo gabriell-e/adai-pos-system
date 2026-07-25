@@ -40,6 +40,47 @@ const getAll = (req, res) => {
   }
 }
 
+// ─── RESUMEN HOY (dashboard) ──────────────────────────────────────────────
+const getResumenHoy = (req, res) => {
+  try {
+    const hoy = new Date().toLocaleDateString('sv-SE')
+    const ventas = db.prepare(`
+      SELECT v.*, c.nombre AS cliente_nombre, u.nombre AS cajero_nombre
+      FROM ventas v
+      LEFT JOIN clientes c ON v.cliente_id = c.id
+      LEFT JOIN usuarios u ON v.usuario_id = u.id
+      WHERE date(v.creado_en) = ? AND v.estado = 'completada'
+      ORDER BY v.creado_en DESC
+    `).all(hoy)
+
+    const ids = ventas.map(v => v.id)
+    let detalles = []
+    if (ids.length > 0) {
+      const placeholders = ids.map(() => '?').join(',')
+      detalles = db.prepare(`
+        SELECT venta_id, cantidad, precio_compra_unitario
+        FROM detalle_venta
+        WHERE venta_id IN (${placeholders})
+      `).all(...ids)
+    }
+
+    const costosMap = {}
+    for (const d of detalles) {
+      if (!costosMap[d.venta_id]) costosMap[d.venta_id] = 0
+      costosMap[d.venta_id] += (d.precio_compra_unitario || 0) * d.cantidad
+    }
+
+    const ventasConCosto = ventas.map(v => ({
+      ...v,
+      costo_total: costosMap[v.id] || 0
+    }))
+
+    res.json(ventasConCosto)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+}
+
 // ─── GET BY ID ───────────────────────────────────────────────────────────────
 const getById = (req, res) => {
   try {
@@ -361,4 +402,4 @@ const anular = (req, res) => {
   }
 }
 
-module.exports = { getAll, getById, crear, cobrar, anular }
+module.exports = { getAll, getById, getResumenHoy, crear, cobrar, anular }
