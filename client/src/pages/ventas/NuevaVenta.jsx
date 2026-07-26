@@ -427,11 +427,9 @@ const NuevaVenta = () => {
                           <span className={`text-xs font-bold ${p.stock > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                             Stock: {p.stock} {p.unidad || 'un.'}
                           </span>
-                          {presDefecto && (
-                            <span className="text-sm font-bold text-emerald-700">
-                              {formatGs(presDefecto.precio_venta)}
-                            </span>
-                          )}
+                          <span className="text-sm font-bold text-emerald-700">
+                            {formatGs(presDefecto?.precio_venta || p.precio_venta)}
+                          </span>
                           {p.codigo_barras && (
                             <span className="text-xs text-gray-400">{p.codigo_barras}</span>
                           )}
