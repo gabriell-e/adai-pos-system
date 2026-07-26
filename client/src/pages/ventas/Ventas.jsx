@@ -7,16 +7,27 @@ const formatGs   = n  => `Gs. ${Number(n).toLocaleString('es-PY')}`
 const formatFecha = f => new Date(f).toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' })
 
 const TIPOS_PAGO = ['todos', 'efectivo', 'transferencia', 'qr', 'debito', 'mixto', 'fiado']
+const STORAGE_KEY = 'adai_ventas_filtros'
+
+const cargarFiltros = () => {
+  try {
+    const guardado = sessionStorage.getItem(STORAGE_KEY)
+    if (guardado) return JSON.parse(guardado)
+  } catch (_) {}
+  return { busqueda: '', filtroTipo: 'todos', filtroEstado: 'todos', filtroFiado: 'todos' }
+}
 
 const Ventas = () => {
   const { usuario } = useAuth()
   const esAdmin = usuario?.rol === 'admin'
   const [ventas, setVentas]         = useState([])
   const [cargando, setCargando]     = useState(true)
-  const [busqueda, setBusqueda]     = useState('')
-  const [filtroTipo, setFiltroTipo] = useState('todos')
-  const [filtroEstado, setFiltroEstado] = useState('todos')
-  const [filtroFiado, setFiltroFiado] = useState('todos')
+
+  const guardados = cargarFiltros()
+  const [busqueda, setBusqueda]             = useState(guardados.busqueda)
+  const [filtroTipo, setFiltroTipo]         = useState(guardados.filtroTipo)
+  const [filtroEstado, setFiltroEstado]     = useState(guardados.filtroEstado)
+  const [filtroFiado, setFiltroFiado]       = useState(guardados.filtroFiado)
 
   const cargar = async () => {
     try {
@@ -29,8 +40,13 @@ const Ventas = () => {
 
   useEffect(() => { cargar() }, [])
 
+  // Guardar filtros en sessionStorage cada vez que cambian
+  useEffect(() => {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ busqueda, filtroTipo, filtroEstado, filtroFiado }))
+  }, [busqueda, filtroTipo, filtroEstado, filtroFiado])
+
   const cobrarFiado = async (venta) => {
-    const confirmText = `¿Cobrar venta fiada?\n\nCliente: ${venta.cliente_nombre || 'Sin cliente'}\nMonto: ${formatGs(venta.total)}\n\n¿Confirmar cobro?`
+    const confirmText = `Cobrar venta fiada?\n\nCliente: ${venta.cliente_nombre || 'Sin cliente'}\nMonto: ${formatGs(venta.total)}\n\n¿Confirmar cobro?`
     if (!confirm(confirmText)) return
     try {
       await api.patch(`/ventas/${venta.id}/cobrar`)
@@ -143,7 +159,7 @@ const Ventas = () => {
               <th className="px-4 py-3 text-right">Total</th>
               <th className="px-4 py-3 text-center">Estado</th>
               <th className="px-4 py-3 text-left">Fecha</th>
-              <th className="px-4 py-3 text-center">Acción</th>
+              <th className="px-4 py-3 text-center">Accion</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">

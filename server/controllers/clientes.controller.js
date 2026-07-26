@@ -3,7 +3,15 @@ const { ahora } = require('../utils/fecha')
 
 const getAll = (req, res) => {
   try {
-    const clientes = db.prepare('SELECT * FROM clientes ORDER BY nombre').all()
+    const clientes = db.prepare(`
+      SELECT c.*,
+        COALESCE((
+          SELECT SUM(v.total) FROM ventas v
+          WHERE v.cliente_id = c.id AND v.condicion_venta = 'credito' AND v.fiado_pagada = 0
+        ), 0) AS deuda_total
+      FROM clientes c
+      ORDER BY c.nombre
+    `).all()
     res.json(clientes)
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -24,9 +32,9 @@ const getHistorial = (req, res) => {
   try {
     const ventas = db.prepare(`
       SELECT v.id, v.numero_factura, v.total, v.tipo_pago,
-             v.condicion_venta, v.estado, v.creado_en
+             v.condicion_venta, v.estado, v.fiado_pagada, v.creado_en
       FROM ventas v
-      WHERE v.cliente_id = ?
+      WHERE v.cliente_id = ? AND v.condicion_venta = 'credito'
       ORDER BY v.creado_en DESC
     `).all(req.params.id)
     res.json(ventas)

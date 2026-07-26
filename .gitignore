@@ -181,6 +181,8 @@ out/
 # Archivos de backup/distribucion
 server.zip
 instalacion.html
+ACTUALIZACION-PRODUCCION.txt
+adai-*.json
 
 # Variables de Entorno
 .env

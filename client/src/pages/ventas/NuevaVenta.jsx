@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
@@ -19,6 +19,11 @@ const NuevaVenta = () => {
   const [resultados, setResultados]   = useState([])
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const busquedaRef                   = useRef()
+  const clienteRef                    = useRef()
+
+  // Edición de cantidad (raw string para permitir "0." "0.5" etc.)
+  const [cantidades, setCantidades] = useState({})
+  const cartInputRefs = useRef({})
 
   // Selector de presentación
   const [showPresSelector, setShowPresSelector] = useState(false)
@@ -73,6 +78,17 @@ const NuevaVenta = () => {
   }, [busqueda, productos])
 
   const handleProductoKeyDown = (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      if (carrito.length > 0) {
+        const firstKey = carrito[0]._key
+        cartInputRefs.current[firstKey]?.focus()
+        cartInputRefs.current[firstKey]?.select()
+      } else {
+        clienteRef.current?.focus()
+      }
+      return
+    }
     if (resultados.length === 0) return
     if (e.key === 'ArrowDown') {
       e.preventDefault()
@@ -149,9 +165,11 @@ const NuevaVenta = () => {
           return prev
         }
         const incremento = producto.unidad === 'kg' || producto.unidad === 'gramo' || producto.unidad === 'litro' ? 0.1 : 1
+        const nuevaCant = Math.round((existe.cantidad + incremento) * 100) / 100
+        setCantidades(prevRaw => ({ ...prevRaw, [key]: String(nuevaCant) }))
         return prev.map(i =>
           i._key === key
-            ? { ...i, cantidad: Math.round((i.cantidad + incremento) * 100) / 100 }
+            ? { ...i, cantidad: nuevaCant }
             : i
         )
       }
@@ -159,6 +177,7 @@ const NuevaVenta = () => {
         setError(`"${producto.nombre}" no tiene stock disponible`)
         return prev
       }
+      setCantidades(prevRaw => ({ ...prevRaw, [key]: '1' }))
       return [...prev, {
         _key:              key,
         producto_id:       producto.id,
@@ -185,32 +204,101 @@ const NuevaVenta = () => {
     setShowPresSelector(true)
   }
 
-  const cambiarCantidad = (producto_id, valor) => {
-    const item = carrito.find(i => i.producto_id === producto_id)
-    const esPeso = item.unidad === 'kg' || item.unidad === 'gramo' || item.unidad === 'litro'
-    const num = esPeso ? parseFloat(valor) : parseInt(valor)
-    if (isNaN(num) || num <= 0) return
-    if (num > item.stock) return setError(`Stock máximo disponible: ${item.stock}`)
+  // ── Cantidad: escritura libre ────────────────────────────────────────
+  const esUnidadPeso = (unidad) => unidad === 'kg' || unidad === 'gramo' || unidad === 'litro'
+
+  const handleCantidadChange = (key, raw) => {
+    setCantidades(prev => ({ ...prev, [key]: raw }))
+  }
+
+  const handleCantidadBlur = (key) => {
+    const item = carrito.find(i => i._key === key)
+    if (!item) return
+    const raw = cantidades[key]
+    if (raw === undefined || raw === '') {
+      setCantidades(prev => ({ ...prev, [key]: String(item.cantidad) }))
+      return
+    }
+    const num = esUnidadPeso(item.unidad) ? parseFloat(raw) : parseInt(raw, 10)
+    if (isNaN(num) || num <= 0) {
+      setError(`"${item.nombre}": la cantidad debe ser mayor a 0`)
+      setCantidades(prev => ({ ...prev, [key]: String(item.cantidad) }))
+      return
+    }
+    if (num > 999) {
+      setError('Cantidad máxima: 999')
+      setCantidades(prev => ({ ...prev, [key]: String(item.cantidad) }))
+      return
+    }
+    if (num > item.stock) {
+      setError(`"${item.nombre}": stock máximo disponible: ${item.stock}`)
+      setCantidades(prev => ({ ...prev, [key]: String(item.cantidad) }))
+      return
+    }
+    const redondeado = esUnidadPeso(item.unidad) ? Math.round(num * 100) / 100 : num
     setError('')
+    setCantidades(prev => ({ ...prev, [key]: String(redondeado) }))
     setCarrito(prev =>
-      prev.map(i => i.producto_id === producto_id ? { ...i, cantidad: num } : i)
+      prev.map(i => i._key === key ? { ...i, cantidad: redondeado } : i)
     )
   }
 
-  const quitarDelCarrito = (producto_id) =>
-    setCarrito(prev => prev.filter(i => i.producto_id !== producto_id))
+  const handleCantidadKeyDown = (e, key, idx) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      if (idx < carrito.length - 1) {
+        const nextKey = carrito[idx + 1]._key
+        cartInputRefs.current[nextKey]?.focus()
+        cartInputRefs.current[nextKey]?.select()
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (idx > 0) {
+        const prevKey = carrito[idx - 1]._key
+        cartInputRefs.current[prevKey]?.focus()
+        cartInputRefs.current[prevKey]?.select()
+      } else {
+        busquedaRef.current?.focus()
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      handleCantidadBlur(key)
+      if (idx < carrito.length - 1) {
+        const nextKey = carrito[idx + 1]._key
+        cartInputRefs.current[nextKey]?.focus()
+        cartInputRefs.current[nextKey]?.select()
+      }
+    } else if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault()
+      handleCantidadBlur(key)
+      if (idx < carrito.length - 1) {
+        const nextKey = carrito[idx + 1]._key
+        cartInputRefs.current[nextKey]?.focus()
+        cartInputRefs.current[nextKey]?.select()
+      } else {
+        clienteRef.current?.focus()
+      }
+    } else if (e.key === 'Tab' && e.shiftKey) {
+      e.preventDefault()
+      handleCantidadBlur(key)
+      if (idx > 0) {
+        const prevKey = carrito[idx - 1]._key
+        cartInputRefs.current[prevKey]?.focus()
+        cartInputRefs.current[prevKey]?.select()
+      } else {
+        busquedaRef.current?.focus()
+      }
+    }
+  }
 
-  const cambiarCantidadPres = (key, valor) => {
-    const item = carrito.find(i => i._key === key)
-    if (!item) return
-    const esPeso = item.unidad === 'kg' || item.unidad === 'gramo' || item.unidad === 'litro'
-    const num = esPeso ? parseFloat(valor) : parseInt(valor)
-    if (isNaN(num) || num <= 0) return
-    if (num > 999) return setError('Cantidad máxima: 999')
-    setError('')
-    setCarrito(prev =>
-      prev.map(i => i._key === key ? { ...i, cantidad: num } : i)
-    )
+  const quitarDelCarrito = (producto_id) => {
+    setCarrito(prev => prev.filter(i => i.producto_id !== producto_id))
+    setCantidades(prev => {
+      const next = { ...prev }
+      const item = carrito.find(i => i.producto_id === producto_id)
+      if (item) delete next[item._key]
+      return next
+    })
   }
 
   // ── Cálculos ─────────────────────────────────────────────────────────
@@ -261,6 +349,12 @@ const NuevaVenta = () => {
       return setError('El monto recibido es menor al total')
     if (tipoPago === 'mixto' && totalMixtoPagado < totalFinal)
       return setError(`Faltan ${formatGs(totalFinal - totalMixtoPagado)} para completar el total`)
+
+    for (const item of carrito) {
+      if (item.cantidad <= 0) {
+        return setError(`"${item.nombre}" tiene cantidad ${item.cantidad}. La cantidad debe ser mayor a 0`)
+      }
+    }
 
     setCargando(true)
     try {
@@ -329,9 +423,19 @@ const NuevaVenta = () => {
                     <div className="flex items-center justify-between px-4 py-3">
                       <div className="flex-1">
                         <p className="text-sm font-medium text-gray-800">{p.nombre}</p>
-                        <p className="text-xs text-gray-400">
-                          {p.codigo_barras || 'Sin código'} · IVA {p.tasa_iva}% · Stock: {p.stock} {p.unidad || 'unidad'}
-                        </p>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className={`text-xs font-bold ${p.stock > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                            Stock: {p.stock} {p.unidad || 'un.'}
+                          </span>
+                          {presDefecto && (
+                            <span className="text-sm font-bold text-emerald-700">
+                              {formatGs(presDefecto.precio_venta)}
+                            </span>
+                          )}
+                          {p.codigo_barras && (
+                            <span className="text-xs text-gray-400">{p.codigo_barras}</span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         {presCount > 1 ? (
@@ -348,11 +452,6 @@ const NuevaVenta = () => {
                           >
                             Agregar
                           </button>
-                        )}
-                        {presDefecto && (
-                          <p className="text-sm font-semibold text-emerald-600 w-20 text-right">
-                            {formatGs(presDefecto.precio_venta)}
-                          </p>
                         )}
                       </div>
                     </div>
@@ -382,7 +481,7 @@ const NuevaVenta = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                  {carrito.map(item => (
+                  {carrito.map((item, idx) => (
                   <tr key={item._key} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-800">{item.nombre}</p>
@@ -397,12 +496,14 @@ const NuevaVenta = () => {
                     </td>
                     <td className="px-4 py-3 text-center">
       <input
-        type="number"
-        value={item.cantidad}
-        step={item.unidad === 'kg' || item.unidad === 'gramo' || item.unidad === 'litro' ? '0.1' : '1'}
-        onChange={e => cambiarCantidad(item.producto_id, e.target.value)}
+        ref={el => { cartInputRefs.current[item._key] = el }}
+        type="text"
+        inputMode={esUnidadPeso(item.unidad) ? 'decimal' : 'numeric'}
+        value={cantidades[item._key] ?? String(item.cantidad)}
+        onChange={e => handleCantidadChange(item._key, e.target.value)}
+        onBlur={() => handleCantidadBlur(item._key)}
+        onKeyDown={e => handleCantidadKeyDown(e, item._key, idx)}
         className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-        max={999}
       />
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-gray-700">
@@ -450,6 +551,7 @@ const NuevaVenta = () => {
           ) : (
             <div className="relative">
               <input
+                ref={clienteRef}
                 type="text"
                 placeholder="Buscar por nombre o CI..."
                 value={busquedaCliente}

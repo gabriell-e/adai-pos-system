@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
 import useFormValidacion from '../../utils/useFormValidacion'
@@ -18,19 +18,19 @@ const reglas = {
     label:     'RUC/CI',
     requerido: false,
     validador: soloRucCi,
-    mensaje:   'Solo números y guión. Ej: 1234567-8'
+    mensaje:   'Solo numeros y guion. Ej: 1234567-8'
   },
   telefono: {
-    label:     'Teléfono',
+    label:     'Telefono',
     requerido: false,
     validador: soloTelefono,
-    mensaje:   'Solo números, +, espacios y guiones'
+    mensaje:   'Solo numeros, +, espacios y guiones'
   },
   email: {
     label:     'Email',
     requerido: false,
     validador: esEmail,
-    mensaje:   'Formato de email inválido'
+    mensaje:   'Formato de email invalido'
   }
 }
 
@@ -43,6 +43,7 @@ const Clientes = () => {
   const [modal, setModal]       = useState(false)
   const [editando, setEditando] = useState(null)
   const [errorApi, setErrorApi] = useState('')
+  const busquedaRef = useRef()
 
   const { form, errores, handleChange, validar, resetear } = useFormValidacion(valoresIniciales, reglas)
 
@@ -86,7 +87,7 @@ const Clientes = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setErrorApi('')
-    if (!validar()) return   // Para si hay errores de validación
+    if (!validar()) return
 
     try {
       const payload = {
@@ -117,7 +118,7 @@ const Clientes = () => {
     }
   }
 
-  const formatGs  = n => `Gs. ${Number(n).toLocaleString('es-PY')}`
+  const formatGs = n => `Gs. ${Number(n).toLocaleString('es-PY')}`
   const filtrados = clientes.filter(c =>
     c.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
     c.ruc_ci?.includes(busqueda) ||
@@ -147,11 +148,13 @@ const Clientes = () => {
 
       <div className="mb-4">
         <input
+          ref={busquedaRef}
           type="text"
-          placeholder="Buscar por nombre, RUC/CI o teléfono..."
+          placeholder="Buscar por nombre, RUC/CI o telefono..."
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
           className="w-full max-w-md border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          autoFocus
         />
       </div>
 
@@ -161,7 +164,7 @@ const Clientes = () => {
             <tr>
               <th className="px-4 py-3 text-left">Nombre</th>
               <th className="px-4 py-3 text-left">RUC / CI</th>
-              <th className="px-4 py-3 text-left">Teléfono</th>
+              <th className="px-4 py-3 text-left">Telefono</th>
               <th className="px-4 py-3 text-left">Email</th>
               <th className="px-4 py-3 text-right">Deuda</th>
               <th className="px-4 py-3 text-center">Acciones</th>
@@ -177,13 +180,13 @@ const Clientes = () => {
             ) : filtrados.map(c => (
               <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 font-medium text-gray-800">{c.nombre}</td>
-                <td className="px-4 py-3 text-gray-600">{c.ruc_ci   || <span className="text-gray-300">—</span>}</td>
-                <td className="px-4 py-3 text-gray-600">{c.telefono || <span className="text-gray-300">—</span>}</td>
-                <td className="px-4 py-3 text-gray-600">{c.email    || <span className="text-gray-300">—</span>}</td>
+                <td className="px-4 py-3 text-gray-600">{c.ruc_ci   || <span className="text-gray-300">-</span>}</td>
+                <td className="px-4 py-3 text-gray-600">{c.telefono || <span className="text-gray-300">-</span>}</td>
+                <td className="px-4 py-3 text-gray-600">{c.email    || <span className="text-gray-300">-</span>}</td>
                 <td className="px-4 py-3 text-right">
                   {c.deuda_total > 0
                     ? <span className="text-red-600 font-medium">{formatGs(c.deuda_total)}</span>
-                    : <span className="text-gray-300">—</span>
+                    : <span className="text-gray-300">-</span>
                   }
                 </td>
                 <td className="px-4 py-3 text-center">
@@ -213,21 +216,17 @@ const Clientes = () => {
       {modal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <h2 className="text-lg font-semibold text-gray-800">
                 {editando ? 'Editar cliente' : 'Nuevo cliente'}
               </h2>
-              <button onClick={cerrarModal} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={cerrarModal} className="text-gray-400 hover:text-gray-600 text-xl">X</button>
             </div>
-
             <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
-
-              {/* Campo reutilizable con error inline */}
               {[
-                { campo: 'nombre',   label: 'Nombre',    tipo: 'text',  placeholder: 'Ej: Juan Pérez',        requerido: true  },
+                { campo: 'nombre',   label: 'Nombre',    tipo: 'text',  placeholder: 'Ej: Juan Perez',        requerido: true  },
                 { campo: 'ruc_ci',   label: 'RUC / CI',  tipo: 'text',  placeholder: 'Ej: 1234567-8',         requerido: false },
-                { campo: 'telefono', label: 'Teléfono',  tipo: 'text',  placeholder: 'Ej: 0981000000',        requerido: false },
+                { campo: 'telefono', label: 'Telefono',  tipo: 'text',  placeholder: 'Ej: 0981000000',        requerido: false },
                 { campo: 'email',    label: 'Email',     tipo: 'email', placeholder: 'Ej: cliente@email.com', requerido: false },
               ].map(({ campo, label, tipo, placeholder, requerido }) => (
                 <div key={campo}>
@@ -251,29 +250,21 @@ const Clientes = () => {
                   )}
                 </div>
               ))}
-
               {errorApi && (
                 <p className="text-red-500 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                   {errorApi}
                 </p>
               )}
-
               <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={cerrarModal}
-                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 font-medium"
-                >
+                <button type="button" onClick={cerrarModal}
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 font-medium">
                   Cancelar
                 </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors"
-                >
+                <button type="submit"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors">
                   {editando ? 'Guardar cambios' : 'Crear cliente'}
                 </button>
               </div>
-
             </form>
           </div>
         </div>
