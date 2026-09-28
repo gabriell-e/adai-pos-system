@@ -105,14 +105,6 @@ const Gastos = () => {
         </button>
       </div>
 
-      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-900">
-        <p>
-          <strong>Cada gasto se descuenta del efectivo al cerrar la caja.</strong> Si retiraste
-          <span className="font-medium"> {formatGs(20000)}</span> para vos, cargalo acá y el cierre
-          te va a pedir el efectivo correcto.
-        </p>
-      </div>
-
       {/* Resumen */}
       {resumen && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
