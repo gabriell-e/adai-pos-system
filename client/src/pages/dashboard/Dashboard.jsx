@@ -60,16 +60,38 @@ const Dashboard = () => {
   const gananciaNetaHoy = ventasHoy.reduce((acc, v) => acc + (v.total - (v.costo_total || 0)), 0)
 
   // Ventas y gastos por día, juntos para poder comparar
+  //
+  // El backend solo devuelve los días que tienen movimiento, así que se arma la
+  // serie completa desde el inicio del período hasta hoy, con cero en los días
+  // sin ventas. Si no, un día con una venta y un día con cien quedan a la misma
+  // distancia en el eje, y el gráfico no dice nada.
   const serieDiaria = (() => {
     if (!graf) return []
-    const mapa = new Map()
-    for (const d of graf.por_dia) mapa.set(d.dia, { dia: d.dia.slice(5), ventas: d.monto, gastos: 0 })
-    for (const g of graf.gastos_por_dia) {
-      const actual = mapa.get(g.dia) || { dia: g.dia.slice(5), ventas: 0, gastos: 0 }
-      actual.gastos = g.monto
-      mapa.set(g.dia, actual)
+    const ventas = new Map(graf.por_dia.map(d => [d.dia, d.monto]))
+    const gastos = new Map(graf.gastos_por_dia.map(g => [g.dia, g.monto]))
+
+    // 'AAAA-MM-DD' -> 'DD/MM'. Antes se recortaba con slice(5) y quedaba
+    // 'MM-DD' (formato americano), y al ordenar por esa etiqueta los meses
+    // quedaban mezclados.
+    const etiqueta = d => `${d.slice(8, 10)}/${d.slice(5, 7)}`
+
+    const hoy = new Date().toLocaleDateString('sv-SE')
+    const serie = []
+    let dia = graf.desde
+    // Tope de seguridad por si 'desde' viniera mal y el bucle no termine
+    for (let i = 0; i <= 400 && dia <= hoy; i++) {
+      serie.push({
+        dia: etiqueta(dia),
+        fecha: dia,
+        ventas: ventas.get(dia) || 0,
+        gastos: gastos.get(dia) || 0
+      })
+      // Mediodía en UTC para que el cambio de día no se corra por la zona
+      const f = new Date(`${dia}T12:00:00Z`)
+      f.setUTCDate(f.getUTCDate() + 1)
+      dia = f.toISOString().slice(0, 10)
     }
-    return [...mapa.values()].sort((a, b) => a.dia.localeCompare(b.dia))
+    return serie
   })()
 
   const datosGraficas = graf && {
