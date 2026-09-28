@@ -8,5 +8,6 @@ router.get('/inventario',       ctrl.inventario)
 router.get('/inventario/excel', ctrl.inventarioExcel)
 router.get('/ventas',           ctrl.ventas)
 router.get('/ventas/excel',     ctrl.ventasExcel)
+router.get('/graficas',         ctrl.graficas)
 
 module.exports = router

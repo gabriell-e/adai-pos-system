@@ -380,4 +380,93 @@ const ventasExcel = (req, res) => {
   }
 }
 
-module.exports = { inventario, inventarioExcel, ventas, ventasExcel }
+// ─── GRÁFICAS (dashboard) ──────────────────────────────────────────────────
+const PERIODOS = {
+  hoy:       { dias: 0,  etiqueta: 'Hoy' },
+  '7dias':   { dias: 6,  etiqueta: 'Últimos 7 días' },
+  '30dias':  { dias: 29, etiqueta: 'Últimos 30 días' },
+  mes:       { dias: null, etiqueta: 'Mes actual' }
+}
+
+const graficas = (req, res) => {
+  try {
+    const { periodo = '7dias' } = req.query
+    const conf = PERIODOS[periodo] || PERIODOS['7dias']
+
+    let desde
+    if (periodo === 'mes') {
+      desde = new Date().toLocaleDateString('sv-SE').slice(0, 8) + '01'
+    } else {
+      desde = new Date(Date.now() - conf.dias * 86400000).toLocaleDateString('sv-SE')
+    }
+
+    // ── Ventas por día
+    const porDia = db.prepare(`
+      SELECT date(creado_en) AS dia, COUNT(*) AS ventas, SUM(total) AS monto
+      FROM ventas
+      WHERE estado = 'completada' AND date(creado_en) >= ?
+      GROUP BY dia ORDER BY dia
+    `).all(desde)
+
+    // ── Medios de pago
+    const porPago = db.prepare(`
+      SELECT tipo_pago AS tipo, COUNT(*) AS ventas, SUM(total) AS monto
+      FROM ventas
+      WHERE estado = 'completada' AND date(creado_en) >= ?
+      GROUP BY tipo_pago ORDER BY monto DESC
+    `).all(desde)
+
+    // ── Top productos
+    const topProductos = db.prepare(`
+      SELECT p.nombre, SUM(dv.cantidad) AS unidades, SUM(dv.subtotal) AS monto
+      FROM detalle_venta dv
+      JOIN ventas v ON dv.venta_id = v.id
+      JOIN productos p ON dv.producto_id = p.id
+      WHERE v.estado = 'completada' AND date(v.creado_en) >= ?
+      GROUP BY p.id ORDER BY monto DESC
+      LIMIT 8
+    `).all(desde)
+
+    // ── Ventas por hora
+    const porHora = db.prepare(`
+      SELECT strftime('%H', creado_en) AS hora, COUNT(*) AS ventas, SUM(total) AS monto
+      FROM ventas
+      WHERE estado = 'completada' AND date(creado_en) >= ?
+      GROUP BY hora ORDER BY hora
+    `).all(desde)
+
+    // ── Gastos por día (para contrastar con las ventas)
+    const gastosPorDia = db.prepare(`
+      SELECT date(creado_en) AS dia, SUM(monto) AS monto
+      FROM gastos
+      WHERE estado = 'registrado' AND date(creado_en) >= ?
+      GROUP BY dia
+    `).all(desde)
+
+    const totalVentas  = porDia.reduce((a, d) => a + d.monto, 0)
+    const totalGastos  = gastosPorDia.reduce((a, d) => a + d.monto, 0)
+    const cantidadVentas = porDia.reduce((a, d) => a + d.ventas, 0)
+
+    res.json({
+      periodo:  conf.etiqueta,
+      desde,
+      resumen: {
+        monto_ventas: totalVentas,
+        cantidad_ventas: cantidadVentas,
+        ticket_promedio: cantidadVentas ? Math.round(totalVentas / cantidadVentas) : 0,
+        total_gastos: totalGastos,
+        // Se muestra aparte, la ganancia bruta no se toca
+        resultado_tras_gastos: totalVentas - totalGastos
+      },
+      por_dia: porDia.map(d => ({ dia: d.dia, monto: d.monto, ventas: d.ventas })),
+      por_pago: porPago.map(p => ({ tipo: p.tipo, monto: p.monto, ventas: p.ventas })),
+      top_productos: topProductos,
+      por_hora: porHora.map(h => ({ hora: h.hora, monto: h.monto, ventas: h.ventas })),
+      gastos_por_dia: gastosPorDia
+    })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+}
+
+module.exports = { inventario, inventarioExcel, ventas, ventasExcel, graficas }

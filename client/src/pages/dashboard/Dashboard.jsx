@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../api/axios'
 
-const formatGs    = n => `Gs. ${Number(n).toLocaleString('es-PY')}`
+// recharts pesa ~430 kB, se carga aparte para no frenar el arranque
+const Graficas = lazy(() => import('./Graficas'))
+
+const formatGs    = n => `Gs. ${Number(n || 0).toLocaleString('es-PY')}`
 const formatFecha = f => new Date(f).toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' })
 
 const Stat = ({ label, valor, sub, color = 'text-gray-800' }) => (
@@ -15,27 +18,36 @@ const Stat = ({ label, valor, sub, color = 'text-gray-800' }) => (
 
 const Dashboard = () => {
   const [ventas, setVentas]           = useState([])
-  const [clientes, setClientes]       = useState([])
   const [lowStock, setLowStock]       = useState([])
   const [cajaActiva, setCajaActiva]   = useState(null)
   const [cargando, setCargando]       = useState(true)
 
+  const [periodo, setPeriodo]         = useState('7dias')
+  const [graf, setGraf]               = useState(null)
+  const [cargandoGraf, setCargandoGraf] = useState(true)
+
   useEffect(() => {
     const cargar = async () => {
-      const [ventasHoyRes, cliRes, stockRes, cajaRes] = await Promise.all([
+      const [ventasHoyRes, stockRes, cajaRes] = await Promise.all([
         api.get('/ventas/hoy'),
-        api.get('/clientes'),
         api.get('/productos/low-stock'),
         api.get('/caja/activa').catch(() => ({ data: null }))
       ])
       setVentas(ventasHoyRes.data)
-      setClientes(cliRes.data)
       setLowStock(stockRes.data)
       setCajaActiva(cajaRes.data)
       setCargando(false)
     }
     cargar()
   }, [])
+
+  useEffect(() => {
+    setCargandoGraf(true)
+    api.get('/reportes/graficas', { params: { periodo } })
+      .then(({ data }) => setGraf(data))
+      .catch(() => setGraf(null))
+      .finally(() => setCargandoGraf(false))
+  }, [periodo])
 
   const hoy       = new Date().toLocaleDateString('es-PY')
   const ventasHoy = ventas.filter(v => {
@@ -45,18 +57,31 @@ const Dashboard = () => {
   const totalHoy    = ventasHoy.reduce((acc, v) => acc + v.total, 0)
   const ventasFiado = ventasHoy.filter(v => v.tipo_pago === 'fiado' && !v.fiado_pagada)
   const fiadoPendiente = ventasFiado.reduce((acc, v) => acc + v.total, 0)
-
   const gananciaNetaHoy = ventasHoy.reduce((acc, v) => acc + (v.total - (v.costo_total || 0)), 0)
 
-  const ventasPorTipo = [
-    { tipo: 'efectivo', total: ventasHoy.filter(v => v.tipo_pago === 'efectivo').reduce((a, v) => a + v.total, 0) },
-    { tipo: 'transferencia', total: ventasHoy.filter(v => v.tipo_pago === 'transferencia').reduce((a, v) => a + v.total, 0) },
-    { tipo: 'qr', total: ventasHoy.filter(v => v.tipo_pago === 'qr').reduce((a, v) => a + v.total, 0) },
-    { tipo: 'debito', total: ventasHoy.filter(v => v.tipo_pago === 'debito').reduce((a, v) => a + v.total, 0) },
-    { tipo: 'fiado', total: ventasHoy.filter(v => v.tipo_pago === 'fiado').reduce((a, v) => a + v.total, 0) },
-  ].filter(t => t.total > 0)
+  // Ventas y gastos por día, juntos para poder comparar
+  const serieDiaria = (() => {
+    if (!graf) return []
+    const mapa = new Map()
+    for (const d of graf.por_dia) mapa.set(d.dia, { dia: d.dia.slice(5), ventas: d.monto, gastos: 0 })
+    for (const g of graf.gastos_por_dia) {
+      const actual = mapa.get(g.dia) || { dia: g.dia.slice(5), ventas: 0, gastos: 0 }
+      actual.gastos = g.monto
+      mapa.set(g.dia, actual)
+    }
+    return [...mapa.values()].sort((a, b) => a.dia.localeCompare(b.dia))
+  })()
 
-  const ultimasVentas = ventasHoy.slice(0, 8)
+  const datosGraficas = graf && {
+    serieDiaria,
+    periodo: graf.periodo,
+    datosPago:   graf.por_pago.map(p => ({ name: p.tipo.charAt(0).toUpperCase() + p.tipo.slice(1), value: p.monto })),
+    datosHora:   graf.por_hora.map(h => ({ hora: `${h.hora}h`, monto: h.monto })),
+    datosProductos: graf.top_productos.map(p => ({
+      nombre: p.nombre.length > 18 ? `${p.nombre.slice(0, 18)}…` : p.nombre,
+      monto: p.monto
+    }))
+  }
 
   if (cargando) return (
     <div className="flex justify-center items-center h-64">
@@ -67,13 +92,11 @@ const Dashboard = () => {
   return (
     <div className="space-y-6">
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {new Date().toLocaleDateString('es-PY', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          {new Date().toLocaleDateString('es-PY', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        </p>
       </div>
 
       {/* Estado de caja */}
@@ -106,6 +129,53 @@ const Dashboard = () => {
         <Stat label="Ganancia neta hoy" valor={formatGs(gananciaNetaHoy)} sub="Ventas - Costos" color={gananciaNetaHoy >= 0 ? 'text-emerald-600' : 'text-red-600'} />
       </div>
 
+      {/* Gráficas */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold text-gray-800">Gráficas</h2>
+        <select
+          value={periodo}
+          onChange={e => setPeriodo(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        >
+          <option value="hoy">Hoy</option>
+          <option value="7dias">Últimos 7 días</option>
+          <option value="30dias">Últimos 30 días</option>
+          <option value="mes">Mes actual</option>
+        </select>
+      </div>
+
+      {cargandoGraf ? (
+        <div className="bg-white rounded-xl shadow-sm h-80 flex items-center justify-center">
+          <p className="text-gray-400 text-sm">Cargando gráficas...</p>
+        </div>
+      ) : !graf || serieDiaria.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-400 text-sm">
+          No hay ventas en este período
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Stat label="Ventas del período" valor={formatGs(graf.resumen.monto_ventas)} sub={`${graf.resumen.cantidad_ventas} ventas`} color="text-emerald-600" />
+            <Stat label="Ticket promedio" valor={formatGs(graf.resumen.ticket_promedio)} sub={graf.periodo} />
+            <Stat label="Gastos personales" valor={formatGs(graf.resumen.total_gastos)} sub="Del período" color="text-red-500" />
+            <Stat
+              label="Tras gastos"
+              valor={formatGs(graf.resumen.resultado_tras_gastos)}
+              sub="Ventas - gastos"
+              color={graf.resumen.resultado_tras_gastos >= 0 ? 'text-emerald-600' : 'text-red-600'}
+            />
+          </div>
+
+          <Suspense fallback={
+            <div className="bg-white rounded-xl shadow-sm h-80 flex items-center justify-center">
+              <p className="text-gray-400 text-sm">Cargando gráficas...</p>
+            </div>
+          }>
+            <Graficas datos={datosGraficas} />
+          </Suspense>
+        </>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* Últimas ventas */}
@@ -114,11 +184,11 @@ const Dashboard = () => {
             <p className="font-medium text-gray-700 text-sm">Últimas ventas</p>
             <Link to="/ventas" className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">Ver todas →</Link>
           </div>
-          {ultimasVentas.length === 0 ? (
+          {ventasHoy.length === 0 ? (
             <div className="px-4 py-8 text-center text-gray-400 text-sm">Sin ventas registradas</div>
           ) : (
             <div className="divide-y">
-              {ultimasVentas.map(v => (
+              {ventasHoy.slice(0, 8).map(v => (
                 <Link key={v.id} to={`/ventas/${v.id}`} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors">
                   <div>
                     <p className="text-sm font-medium text-gray-800">{v.cliente_nombre || 'Consumidor final'}</p>
@@ -134,31 +204,8 @@ const Dashboard = () => {
           )}
         </div>
 
-        {/* Ventas del día por tipo de pago */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b">
-            <p className="font-medium text-gray-700 text-sm">Ventas hoy por tipo</p>
-          </div>
-          {ventasPorTipo.length === 0 ? (
-            <div className="px-4 py-8 text-center text-gray-400 text-sm">Sin ventas hoy</div>
-          ) : (
-            <div className="divide-y">
-              {ventasPorTipo.map(t => (
-                <div key={t.tipo} className="flex items-center justify-between px-4 py-3">
-                  <span className="text-sm text-gray-700 capitalize">{t.tipo}</span>
-                  <span className="text-sm font-semibold text-gray-800">{formatGs(t.total)}</span>
-                </div>
-              ))}
-              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 font-medium">
-                <span className="text-sm text-gray-800">Total</span>
-                <span className="text-sm font-bold text-emerald-600">{formatGs(totalHoy)}</span>
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* Stock bajo */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden lg:col-span-3">
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <p className="font-medium text-gray-700 text-sm">
               Stock bajo
@@ -168,24 +215,21 @@ const Dashboard = () => {
                 </span>
               )}
             </p>
-            <Link to="/productos" className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">Ver productos →</Link>
+            <Link to="/productos" className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">Ver →</Link>
           </div>
           {lowStock.length === 0 ? (
-            <div className="px-4 py-8 text-center text-gray-400 text-sm">✅ Todos los productos tienen stock suficiente</div>
+            <div className="px-4 py-8 text-center text-gray-400 text-sm">✅ Todo con stock suficiente</div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4">
+            <div className="divide-y max-h-80 overflow-y-auto">
               {lowStock.slice(0, 9).map(p => (
-                <div key={p.id} className="flex items-center justify-between bg-red-50 border border-red-100 rounded-lg px-3 py-2.5">
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{p.nombre}</p>
+                <div key={p.id} className="flex items-center justify-between px-4 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{p.nombre}</p>
                     <p className="text-xs text-gray-400">{p.categoria_nombre || '—'}</p>
                   </div>
-                  <div className="text-right">
-                    <span className="inline-block bg-red-100 text-red-600 text-xs font-semibold px-2 py-0.5 rounded-full">
-                      {p.stock} {p.unidad || 'u'}
-                    </span>
-                    <p className="text-xs text-gray-400 mt-0.5">Mín: {p.stock_minimo}</p>
-                  </div>
+                  <span className="inline-block bg-red-100 text-red-600 text-xs font-semibold px-2 py-0.5 rounded-full ml-2 flex-shrink-0">
+                    {p.stock} {p.unidad || 'u'}
+                  </span>
                 </div>
               ))}
             </div>
