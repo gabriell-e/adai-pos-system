@@ -2,8 +2,13 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
+import { buscarProductos } from '../../utils/buscar'
 
 const formatGs = n => `Gs. ${Number(n).toLocaleString('es-PY')}`
+
+// Máximo de productos en el desplegable de resultados. Antes era 6, y con
+// palabras como "leche" había productos que directamente nunca aparecían.
+const MAX_RESULTADOS = 12
 
 const NuevaVenta = () => {
   const { usuario } = useAuth()
@@ -17,6 +22,9 @@ const NuevaVenta = () => {
   // Búsqueda producto
   const [busqueda, setBusqueda]       = useState('')
   const [resultados, setResultados]   = useState([])
+  // cuántos productos coinciden en total, para avisar cuántos se quedaron
+  // fuera del desplegable
+  const [totalResultados, setTotalResultados] = useState(0)
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const busquedaRef                   = useRef()
   const clienteRef                    = useRef()
@@ -49,6 +57,9 @@ const NuevaVenta = () => {
   const [pagoDetalle, setPagoDetalle] = useState([])
   const [nuevoPagoTipo, setNuevoPagoTipo] = useState('efectivo')
   const [nuevoPagoMonto, setNuevoPagoMonto] = useState('')
+  // Al agregar el monto queda el foco en el campo, para cargar el segundo medio
+  // de pago sin tener que volver a hacer clic
+  const pagoMontoRef = useRef(null)
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -65,15 +76,17 @@ const NuevaVenta = () => {
   }, [])
 
   // ── Búsqueda de productos ────────────────────────────────────────────
+  // Con prioridad: al escribir "leche" salen primero los que se llaman
+  // "Leche", después los que dicen "Leche entera", y al final "Crema de
+  // leche" o "Desodorante para piso leche". Antes no había orden (era el
+  // orden de la lista) y se cortaba en 6, así que algunos nunca aparecían.
   useEffect(() => {
-    if (!busqueda.trim()) { setResultados([]); setSelectedIndex(-1); return }
-    const lower = busqueda.toLowerCase()
-    setResultados(
-      productos.filter(p =>
-        p.nombre.toLowerCase().includes(lower) ||
-        p.codigo_barras?.includes(busqueda)
-      ).slice(0, 6)
-    )
+    if (!busqueda.trim()) {
+      setResultados([]); setTotalResultados(0); setSelectedIndex(-1); return
+    }
+    const todos = buscarProductos(productos, busqueda)
+    setTotalResultados(todos.length)
+    setResultados(todos.slice(0, MAX_RESULTADOS))
     setSelectedIndex(-1)
   }, [busqueda, productos])
 
@@ -312,16 +325,45 @@ const NuevaVenta = () => {
   const totalMixtoPagado = pagoDetalle.reduce((a, p) => a + p.monto, 0)
   const faltanteMixto    = totalFinal - totalMixtoPagado
 
-  const agregarPagoMixto = () => {
-    const monto = Number(nuevoPagoMonto)
+  const agregarPagoMixto = (montoAUsar, tipoAUsar) => {
+    const monto = Math.round(Number(montoAUsar))
     if (!monto || monto <= 0) return
     if (totalMixtoPagado + monto > totalFinal) {
       setError('El monto excede el total de la venta')
       return
     }
-    setPagoDetalle(prev => [...prev, { tipo: nuevoPagoTipo, monto }])
+
+    // Si el medio ya está en la lista, se suma en vez de repetir la fila: 5000
+    // en efectivo dos veces es una sola línea por 10.000
+    const yaExiste = pagoDetalle.findIndex(p => p.tipo === (tipoAUsar ?? nuevoPagoTipo))
+    if (yaExiste >= 0) {
+      setPagoDetalle(prev => prev.map((p, i) =>
+        i === yaExiste ? { ...p, monto: p.monto + monto } : p
+      ))
+    } else {
+      setPagoDetalle(prev => [...prev, { tipo: tipoAUsar ?? nuevoPagoTipo, monto }])
+    }
+
     setNuevoPagoMonto('')
     setError('')
+    // Foco de vuelta en el monto, ya con lo que falta
+    requestAnimationFrame(() => {
+      pagoMontoRef.current?.focus()
+      pagoMontoRef.current?.select()
+    })
+  }
+
+  // Enter en el monto: agrega el pago. Antes el campo no tenía nada
+  // escuchando al teclado, y había que tocar el botón "+" con el mouse
+  const handlePagoMontoKeyDown = e => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    agregarPagoMixto(nuevoPagoMonto)
+  }
+
+  const completarConResto = () => {
+    if (faltanteMixto <= 0) return
+    agregarPagoMixto(faltanteMixto)
   }
 
   const quitarPagoMixto = (index) =>
@@ -414,6 +456,8 @@ const NuevaVenta = () => {
           />
           {resultados.length > 0 && (
             <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg z-20 mt-1 overflow-hidden">
+              {/* Con 12 resultados la lista es más alta que la pantalla */}
+              <div className="max-h-80 overflow-y-auto">
               {resultados.map((p, idx) => {
                 const presCount = p.presentaciones?.length || 0
                 const presDefecto = p.presentaciones?.find(pr => pr.es_venta_defecto === 1)
@@ -456,6 +500,13 @@ const NuevaVenta = () => {
                   </div>
                 )
               })}
+              </div>
+              {totalResultados > resultados.length && (
+                <p className="px-4 py-2 text-xs text-gray-500 bg-gray-50 border-t">
+                  {totalResultados} productos coinciden. Se muestran los {resultados.length} mejor&nbsp;parados;
+                  seguí escribiendo para afinar la búsqueda.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -643,49 +694,72 @@ const NuevaVenta = () => {
             </div>
           )}
 
-          {tipoPago === 'mixto' && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-gray-600">Medios de pago:</p>
+            {tipoPago === 'mixto' && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-gray-600">
+                  Medios de pago <span className="text-gray-400">(Enter agrega el monto)</span>
+                </p>
 
-              {pagoDetalle.length > 0 && (
-                <div className="space-y-1.5">
-                  {pagoDetalle.map((p, i) => (
-                    <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-sm">
-                      <span className="capitalize text-gray-700">{p.tipo}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{formatGs(p.monto)}</span>
-                        <button onClick={() => quitarPagoMixto(i)} className="text-gray-400 hover:text-red-500 text-xs">✕</button>
+                {pagoDetalle.length > 0 && (
+                  <div className="space-y-1.5">
+                    {pagoDetalle.map((p, i) => (
+                      <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-sm">
+                        <span className="capitalize text-gray-700">{p.tipo}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{formatGs(p.monto)}</span>
+                          <button
+                            type="button"
+                            onClick={() => quitarPagoMixto(i)}
+                            className="text-gray-400 hover:text-red-500 text-xs"
+                          >✕</button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-2 items-end">
+                  <select value={nuevoPagoTipo} onChange={e => setNuevoPagoTipo(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    <option value="efectivo">Efectivo</option>
+                    <option value="transferencia">Transferencia</option>
+                    <option value="qr">QR</option>
+                    <option value="debito">Débito</option>
+                  </select>
+                  <input
+                    ref={pagoMontoRef}
+                    type="number"
+                    value={nuevoPagoMonto}
+                    onChange={e => setNuevoPagoMonto(e.target.value)}
+                    onKeyDown={handlePagoMontoKeyDown}
+                    placeholder={faltanteMixto > 0 ? String(Math.round(faltanteMixto)) : '0'}
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    min="0" />
+                  <button
+                    type="button"
+                    onClick={() => agregarPagoMixto(nuevoPagoMonto)}
+                    disabled={!nuevoPagoMonto || Number(nuevoPagoMonto) <= 0}
+                    className="bg-emerald-100 hover:bg-emerald-200 disabled:opacity-40 disabled:hover:bg-emerald-100 text-emerald-700 text-sm font-medium px-3 py-2 rounded-lg transition-colors"
+                  >+</button>
                 </div>
-              )}
 
-              <div className="flex gap-2 items-end">
-                <select value={nuevoPagoTipo} onChange={e => setNuevoPagoTipo(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-                  <option value="efectivo">Efectivo</option>
-                  <option value="transferencia">Transferencia</option>
-                  <option value="qr">QR</option>
-                  <option value="debito">Débito</option>
-                </select>
-                <input type="number" value={nuevoPagoMonto}
-                  onChange={e => setNuevoPagoMonto(e.target.value)}
-                  placeholder={String(Math.max(0, faltanteMixto))}
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  min="0" />
-                <button onClick={agregarPagoMixto}
-                  className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-sm font-medium px-3 py-2 rounded-lg transition-colors">
-                  +
-                </button>
-              </div>
+                {/* Atajo del caso más común: el resto en efectivo */}
+                {faltanteMixto > 0 && (
+                  <button
+                    type="button"
+                    onClick={completarConResto}
+                    className="w-full text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg py-2 transition-colors"
+                  >
+                    Completar con {formatGs(faltanteMixto)} en {nuevoPagoTipo}
+                  </button>
+                )}
 
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>Pagado: <span className="font-medium text-emerald-600">{formatGs(totalMixtoPagado)}</span></span>
-                <span>Falta: <span className={`font-medium ${faltanteMixto > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{formatGs(Math.max(0, faltanteMixto))}</span></span>
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Pagado: <span className="font-medium text-emerald-600">{formatGs(totalMixtoPagado)}</span></span>
+                  <span>Falta: <span className={`font-medium ${faltanteMixto > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{formatGs(Math.max(0, faltanteMixto))}</span></span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Descuento (Gs.)</label>

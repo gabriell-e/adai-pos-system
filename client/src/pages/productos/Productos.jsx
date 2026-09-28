@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
+import { buscarProductos } from '../../utils/buscar'
 
 const formatGs = n => `Gs. ${Number(n).toLocaleString('es-PY')}`
 
@@ -217,15 +218,15 @@ const Productos = () => {
     }
   }
 
-  const productosFiltrados = productos.filter(p => {
-    const coincideBusqueda =
-      p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-      p.codigo_barras?.includes(busqueda)
-    const coincideCategoria = filtroCategoria
-      ? p.categoria_id === Number(filtroCategoria)
-      : true
-    return coincideBusqueda && coincideCategoria
-  })
+  // Primero se filtra por categoría, y después se ordena por prioridad de
+  // coincidencia: al buscar "leche" arriba sale el que se llama "Leche", no
+  // el primero de la lista. Sin búsqueda muestra todo, como antes.
+  const porCategoria = productos.filter(p =>
+    filtroCategoria ? p.categoria_id === Number(filtroCategoria) : true
+  )
+  const productosFiltrados = busqueda.trim()
+    ? buscarProductos(porCategoria, busqueda)
+    : porCategoria
 
   if (cargando) return (
     <div className="flex justify-center items-center h-64">
