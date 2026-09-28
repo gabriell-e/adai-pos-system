@@ -182,7 +182,60 @@ const init = () => {
       creado_en DATETIME DEFAULT (datetime('now', 'localtime'))
     );
 
+    CREATE TABLE IF NOT EXISTS gastos (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      usuario_id       INTEGER REFERENCES usuarios(id),
+      descripcion      TEXT    NOT NULL,
+      monto            REAL    NOT NULL,
+      categoria        TEXT,
+      estado           TEXT    NOT NULL DEFAULT 'registrado'
+                       CHECK(estado IN ('registrado', 'anulado')),
+      anulado_por      INTEGER REFERENCES usuarios(id),
+      anulado_en       DATETIME,
+      motivo_anulacion TEXT,
+      creado_en        DATETIME DEFAULT (datetime('now', 'localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS configuracion_backup (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      email_remitente     TEXT,
+      email_app_password  TEXT,
+      email_destinatarios  TEXT,
+      frecuencia_dias     INTEGER NOT NULL DEFAULT 7,
+      aviso_email_activo  INTEGER NOT NULL DEFAULT 0,
+      ultimo_respaldo_en  DATETIME,
+      ultimo_aviso_en     DATETIME,
+      creado_en           DATETIME DEFAULT (datetime('now', 'localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS respaldos (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      archivo     TEXT    NOT NULL,
+      tamano      INTEGER NOT NULL,
+      automatico  INTEGER NOT NULL DEFAULT 1,
+      creado_en   DATETIME DEFAULT (datetime('now', 'localtime'))
+    );
+
   `)
+
+  // Índices — la base creció a miles de filas y sin esto
+  // cada consulta hace full table scan + sort.
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_ventas_creado   ON ventas(creado_en DESC)") } catch (_) {}
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_ventas_estado   ON ventas(estado)") } catch (_) {}
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_ventas_tipo     ON ventas(tipo_pago)") } catch (_) {}
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_ventas_cliente  ON ventas(cliente_id)") } catch (_) {}
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_ventas_fiado    ON ventas(fiado_pagada)") } catch (_) {}
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_det_venta_venta ON detalle_venta(venta_id)") } catch (_) {}
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_det_venta_prod  ON detalle_venta(producto_id)") } catch (_) {}
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_det_compra_compra ON detalle_compra(compra_id)") } catch (_) {}
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_det_compra_prod   ON detalle_compra(producto_id)") } catch (_) {}
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_mov_prod   ON movimientos_stock(producto_id)") } catch (_) {}
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_mov_fecha  ON movimientos_stock(creado_en DESC)") } catch (_) {}
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_pres_prod  ON presentaciones_producto(producto_id)") } catch (_) {}
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_consumo_fecha ON consumo_propio(creado_en DESC)") } catch (_) {}
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_gastos_fecha  ON gastos(creado_en DESC)") } catch (_) {}
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_gastos_estado ON gastos(estado)") } catch (_) {}
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_productos_activo ON productos(activo)") } catch (_) {}
 
   // Migraciones para bases de datos existentes
   try { db.exec("ALTER TABLE productos ADD COLUMN unidad TEXT DEFAULT 'unidad'") } catch (_) {}
@@ -193,6 +246,18 @@ const init = () => {
   try { db.exec("ALTER TABLE ventas ADD COLUMN fiado_pagada INTEGER DEFAULT 0") } catch (_) {}
   try { db.exec("ALTER TABLE ventas ADD COLUMN cobrado_en DATETIME") } catch (_) {}
   try { db.exec("ALTER TABLE ventas ADD COLUMN pago_detalle TEXT") } catch (_) {}
+
+  // Caja: cuánto se descontó por gastos personales en el cierre
+  try { db.exec("ALTER TABLE caja ADD COLUMN total_gastos REAL DEFAULT 0") } catch (_) {}
+
+  // Primera vez: dejar fila de configuración de respaldo
+  const configBackup = db.prepare('SELECT id FROM configuracion_backup LIMIT 1').get()
+  if (!configBackup) {
+    db.prepare(`
+      INSERT INTO configuracion_backup (email_remitente, frecuencia_dias, aviso_email_activo)
+      VALUES ('', 7, 0)
+    `).run()
+  }
 
   console.log('✅ Base de datos inicializada')
 }
