@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import api from '../../api/axios'
 
 const formatGs = n => `Gs. ${Number(n || 0).toLocaleString('es-PY')}`
@@ -45,6 +46,7 @@ function VentasTab({ cargando, setCargando, setErrorMsj }) {
   const [fechaHasta, setFechaHasta] = useState(toLocalDate(new Date()))
   const [tipoPagoFiltro, setTipoPagoFiltro] = useState('')
   const [data, setData] = useState(null)
+  const [gastos, setGastos] = useState(null)
   const [filtroRapido, setFiltroRapido] = useState('hoy')
 
   const presets = [
@@ -102,6 +104,10 @@ function VentasTab({ cargando, setCargando, setErrorMsj }) {
       if (tipo) p.set('tipo_pago', tipo)
       const { data: resp } = await api.get('/reportes/ventas?' + p.toString())
       setData(resp)
+      // Los gastos van aparte: la ganancia bruta no se toca
+      api.get('/gastos', { params: { fecha_desde: desde, fecha_hasta: hasta, estado: 'registrado' } })
+        .then(({ data: g }) => setGastos(g))
+        .catch(() => setGastos(null))
     } catch (err) {
       setErrorMsj(err.response?.data?.error || 'Error al cargar ventas')
     }
@@ -193,6 +199,45 @@ function VentasTab({ cargando, setCargando, setErrorMsj }) {
           <CardResumen label="Monto total" value={formatGs(res.monto_total)} color="text-emerald-600" />
           <CardResumen label="Costo total" value={formatGs(res.costo_total)} color="text-orange-600" />
           <CardResumen label="Ganancia neta" value={formatGs(res.ganancia_neta)} color="text-emerald-700" />
+        </div>
+      )}
+
+      {/* Gastos personales: se muestran aparte, no restan de la ganancia bruta */}
+      {gastos && gastos.gastos.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-medium text-gray-700 text-sm">
+              Gastos personales del período
+              <span className="ml-2 bg-red-100 text-red-600 text-xs font-semibold px-2 py-0.5 rounded-full">
+                {gastos.gastos.length}
+              </span>
+            </p>
+            <Link to="/gastos" className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">Ver todos →</Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2.5">
+              <p className="text-xs text-red-600">Total gastado</p>
+              <p className="text-lg font-bold text-red-700">{formatGs(gastos.resumen.total_gastos)}</p>
+            </div>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+              <p className="text-xs text-gray-500">Ganancia neta (sin gastos)</p>
+              <p className="text-lg font-bold text-emerald-700">{formatGs(res?.ganancia_neta)}</p>
+            </div>
+            <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
+              <p className="text-xs text-blue-600">Ganancia tras gastos</p>
+              <p className={`text-lg font-bold ${
+                (res?.ganancia_neta - gastos.resumen.total_gastos) >= 0 ? 'text-blue-700' : 'text-red-700'
+              }`}>
+                {formatGs((res?.ganancia_neta || 0) - gastos.resumen.total_gastos)}
+              </p>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-400 mt-3">
+            Los gastos personales no forman parte del negocio, así que no se restan de la ganancia neta.
+            Se los muestra aparte para que sepas cuánto te queda.
+          </p>
         </div>
       )}
 

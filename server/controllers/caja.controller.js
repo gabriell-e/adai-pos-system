@@ -1,6 +1,28 @@
 const { db } = require('../db')
 const { ahora } = require('../utils/fecha')
 
+// Efectivo real que entró a la gaveta en un rango de tiempo.
+// Las ventas mixtas guardan el detalle en JSON, así que hay que sumar
+// solo la parte en efectivo; si no, el cierre siempre da faltante.
+const SQL_EFECTIVO = `
+  SELECT COALESCE(SUM(CASE
+    WHEN v.tipo_pago = 'efectivo' THEN v.total
+    WHEN v.tipo_pago = 'mixto' AND v.pago_detalle IS NOT NULL THEN
+      COALESCE((
+        SELECT SUM(CAST(json_extract(j.value, '$.monto') AS REAL))
+        FROM json_each(v.pago_detalle) j
+        WHERE json_extract(j.value, '$.tipo') = 'efectivo'
+      ), 0)
+    ELSE 0
+  END), 0) AS total
+  FROM ventas v
+  WHERE v.creado_en BETWEEN ? AND COALESCE(?, datetime('now', 'localtime'))
+    AND v.estado = 'completada'
+`
+
+const totalEfectivo = (desde, hasta = null) =>
+  db.prepare(SQL_EFECTIVO).get(desde, hasta).total
+
 // ─── GET ALL ─────────────────────────────────────────────────────────────────
 const getAll = (req, res) => {
   try {
@@ -55,7 +77,30 @@ const getById = (req, res) => {
 
     const totalVentas = ventas.reduce((acc, v) => acc + v.total, 0)
 
-    res.json({ ...caja, ventas, resumen, total_ventas: totalVentas })
+    // Gastos personales del período de esta caja
+    const gastos = db.prepare(`
+      SELECT g.*, u.nombre AS usuario_nombre
+      FROM gastos g
+      LEFT JOIN usuarios u ON g.usuario_id = u.id
+      WHERE g.creado_en >= ? AND g.creado_en <= COALESCE(?, datetime('now', 'localtime'))
+      ORDER BY g.creado_en DESC
+    `).all(caja.abierta_en, caja.cerrada_en)
+
+    const totalGastos = gastos
+      .filter(g => g.estado === 'registrado')
+      .reduce((acc, g) => acc + g.monto, 0)
+
+    const efectivoCaja = totalEfectivo(caja.abierta_en, caja.cerrada_en)
+
+    res.json({
+      ...caja,
+      ventas,
+      resumen,
+      gastos,
+      total_gastos:  Math.round(totalGastos),
+      esperado:      Math.round(caja.monto_inicial + efectivoCaja - totalGastos),
+      total_ventas:  Math.round(totalVentas)
+    })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
@@ -131,12 +176,8 @@ const cerrar = (req, res) => {
       WHERE creado_en >= ? AND estado = 'completada'
     `).get(caja.abierta_en).total
 
-    // Total efectivo del día
-    const totalEfectivo = db.prepare(`
-      SELECT COALESCE(SUM(total), 0) AS total
-      FROM ventas
-      WHERE creado_en >= ? AND tipo_pago = 'efectivo' AND estado = 'completada'
-    `).get(caja.abierta_en).total
+    // Total efectivo que entró a la gaveta (incluye la parte en efectivo de las mixtas)
+    const efectivoCaja = totalEfectivo(caja.abierta_en, cerrada_en)
 
     // Costo real de lo vendido (ganancia bruta)
     const costoVendido = db.prepare(`
@@ -147,20 +188,32 @@ const cerrar = (req, res) => {
     `).get(caja.abierta_en).total
 
     const ganancia    = Math.round(totalVentas - costoVendido)
-    const diferencia  = Math.round(monto_final - (caja.monto_inicial + totalEfectivo))
+
+    // Gastos personales: también salen del efectivo de la caja
+    const gastos = db.prepare(`
+      SELECT COALESCE(SUM(monto), 0) AS total, COUNT(*) AS cantidad
+      FROM gastos
+      WHERE estado = 'registrado' AND creado_en >= ?
+    `).get(caja.abierta_en)
+
+    const esperado = Math.round(caja.monto_inicial + efectivoCaja - gastos.total)
+    const diferencia  = Math.round(monto_final - esperado)
 
     db.prepare(`
-      UPDATE caja SET monto_final = ?, cerrada_en = ?, estado = 'cerrada' WHERE id = ?
-    `).run(monto_final, cerrada_en, req.params.id)
+      UPDATE caja SET monto_final = ?, cerrada_en = ?, estado = 'cerrada', total_gastos = ?
+      WHERE id = ?
+    `).run(monto_final, cerrada_en, gastos.total, req.params.id)
 
     res.json({
       mensaje:         'Caja cerrada correctamente',
       monto_inicial:   caja.monto_inicial,
       total_ventas:    Math.round(totalVentas),
-      total_efectivo:  Math.round(totalEfectivo),
+      total_efectivo:  Math.round(efectivoCaja),
       costo_vendido:   Math.round(costoVendido),
       ganancia_bruta:  ganancia,
-      esperado:        Math.round(caja.monto_inicial + totalEfectivo),
+      total_gastos:    Math.round(gastos.total),
+      cantidad_gastos: gastos.cantidad,
+      esperado,
       monto_final,
       diferencia,
       cerrada_en

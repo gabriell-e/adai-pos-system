@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+﻿import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import PrivateRoute from './components/PrivateRoute'
 import Layout from './components/Layout'
@@ -17,6 +17,7 @@ import Caja     from './pages/caja/Caja'
 import Dashboard      from './pages/dashboard/Dashboard'
 import Reportes       from './pages/reportes/Reportes'
 import Configuracion  from './pages/configuracion/Configuracion'
+import Gastos         from './pages/gastos/Gastos'
 
 const App = () => (
   <BrowserRouter>
@@ -43,6 +44,7 @@ const App = () => (
                 <Route path="/caja"         element={<Caja />} />
                 <Route path="/reportes"    element={<Reportes />} />
                 <Route path="/configuracion" element={<Configuracion />} />
+                <Route path="/gastos"       element={<Gastos />} />
               </Routes>
             </Layout>
           </PrivateRoute>
