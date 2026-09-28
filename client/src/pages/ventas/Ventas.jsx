@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
 
-const formatGs   = n  => `Gs. ${Number(n).toLocaleString('es-PY')}`
-const formatFecha = f => new Date(f).toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' })
+const formatGs    = n  => `Gs. ${Number(n).toLocaleString('es-PY')}`
+const formatFecha = f  => new Date(f).toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' })
 
 const TIPOS_PAGO = ['todos', 'efectivo', 'transferencia', 'qr', 'debito', 'mixto', 'fiado']
 const STORAGE_KEY = 'adai_ventas_filtros'
+const POR_PAGINA  = 100
 
 const cargarFiltros = () => {
   try {
@@ -20,8 +21,13 @@ const cargarFiltros = () => {
 const Ventas = () => {
   const { usuario } = useAuth()
   const esAdmin = usuario?.rol === 'admin'
+
   const [ventas, setVentas]         = useState([])
   const [cargando, setCargando]     = useState(true)
+  const [cargandoMas, setCargandoMas] = useState(false)
+  const [pagina, setPagina]         = useState(1)
+  const [hayMas, setHayMas]         = useState(false)
+  const [meta, setMeta]             = useState({ total: 0, monto_total: 0, fiados_pendientes: 0 })
 
   const guardados = cargarFiltros()
   const [busqueda, setBusqueda]             = useState(guardados.busqueda)
@@ -29,57 +35,110 @@ const Ventas = () => {
   const [filtroEstado, setFiltroEstado]     = useState(guardados.filtroEstado)
   const [filtroFiado, setFiltroFiado]       = useState(guardados.filtroFiado)
 
-  const cargar = async () => {
+  // Para no pedir la misma página dos veces
+  const pedidoEnCurso = useRef(false)
+  const pendienteRef  = useRef(null)
+  const sentinelRef  = useRef(null)
+
+  const construirParams = useCallback((pag) => {
+    const p = { pagina: pag, por_pagina: POR_PAGINA }
+    if (busqueda)     p.busqueda   = busqueda
+    if (filtroTipo   !== 'todos') p.tipo_pago = filtroTipo
+    if (filtroEstado !== 'todos') p.estado    = filtroEstado
+    if (filtroFiado  !== 'todos') p.fiado     = filtroFiado
+    return p
+  }, [busqueda, filtroTipo, filtroEstado, filtroFiado])
+
+  const cargarPagina = async (pag, { reemplazar }) => {
+    // Si ya hay una petición en vuelo, no se pierde la nueva: se guarda
+    // y se corre apenas termine la otra. Antes se descartaba y el usuario
+    // quedaba viendo resultados de un filtro que ya había cambiado.
+    if (pedidoEnCurso.current) {
+      pendienteRef.current = { pag, reemplazar }
+      return
+    }
+    pedidoEnCurso.current = true
+
+    if (reemplazar) setCargando(true)
+    else setCargandoMas(true)
+
     try {
-      const { data } = await api.get('/ventas')
-      setVentas(data)
+      const { data } = await api.get('/ventas', { params: construirParams(pag) })
+
+      setVentas(prev => reemplazar ? data.ventas : [...prev, ...data.ventas])
+      setMeta({
+        total: data.total,
+        monto_total: data.monto_total,
+        fiados_pendientes: data.fiados_pendientes
+      })
+      setHayMas(data.hay_mas)
+      setPagina(pag)
+    } catch (err) {
+      console.error(err)
     } finally {
+      pedidoEnCurso.current = false
       setCargando(false)
+      setCargandoMas(false)
+
+      const pendiente = pendienteRef.current
+      if (pendiente) {
+        pendienteRef.current = null
+        cargarPagina(pendiente.pag, { reemplazar: pendiente.reemplazar })
+      }
     }
   }
 
-  useEffect(() => { cargar() }, [])
-
-  // Guardar filtros en sessionStorage cada vez que cambian
+  // Guardar filtros para sobrevivir la navegación al detalle
   useEffect(() => {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ busqueda, filtroTipo, filtroEstado, filtroFiado }))
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+      busqueda, filtroTipo, filtroEstado, filtroFiado
+    }))
   }, [busqueda, filtroTipo, filtroEstado, filtroFiado])
+
+  // Carga inicial y recarga por cambio de filtro.
+  // La búsqueda lleva debounce para no pegarle al servidor en cada tecla.
+  const busquedaPrevia = useRef(busqueda)
+  useEffect(() => {
+    const cambioTexto = busquedaPrevia.current !== busqueda
+    busquedaPrevia.current = busqueda
+    const espera = cambioTexto ? 350 : 0
+    const t = setTimeout(() => cargarPagina(1, { reemplazar: true }), espera)
+    return () => clearTimeout(t)
+  }, [construirParams])
+
+  // Scroll infinito
+  useEffect(() => {
+    if (!sentinelRef.current || !hayMas || cargando || cargandoMas) return
+    const obs = new IntersectionObserver(entradas => {
+      if (entradas[0].isIntersecting) {
+        cargarPagina(pagina + 1, { reemplazar: false })
+      }
+    }, { rootMargin: '300px' })
+    obs.observe(sentinelRef.current)
+    return () => obs.disconnect()
+  }, [hayMas, cargando, cargandoMas, pagina])
 
   const cobrarFiado = async (venta) => {
     const confirmText = `Cobrar venta fiada?\n\nCliente: ${venta.cliente_nombre || 'Sin cliente'}\nMonto: ${formatGs(venta.total)}\n\n¿Confirmar cobro?`
     if (!confirm(confirmText)) return
     try {
       await api.patch(`/ventas/${venta.id}/cobrar`)
-      await cargar()
+      cargarPagina(1, { reemplazar: true })
     } catch (err) {
       alert(err.response?.data?.error || 'Error al cobrar')
     }
   }
-
-  const filtradas = ventas.filter(v => {
-    const coincideBusqueda =
-      v.numero_factura?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      v.cliente_nombre?.toLowerCase().includes(busqueda.toLowerCase())
-    const coincideTipo   = filtroTipo   === 'todos' || v.tipo_pago  === filtroTipo
-    const coincideEstado = filtroEstado === 'todos' || v.estado     === filtroEstado
-    const coincideFiado  = filtroFiado  === 'todos'
-      || (filtroFiado === 'pendiente' && v.tipo_pago === 'fiado' && !v.fiado_pagada)
-      || (filtroFiado === 'pagada'    && v.tipo_pago === 'fiado' && v.fiado_pagada)
-      || (filtroFiado === 'nofiado'   && v.tipo_pago !== 'fiado')
-    return coincideBusqueda && coincideTipo && coincideEstado && coincideFiado
-  })
 
   const badgePago = (v) => {
     if (v.tipo_pago === 'fiado') {
       if (v.fiado_pagada) return { text: 'Fiado Pagado', color: 'bg-blue-100 text-blue-700' }
       return { text: 'Fiado', color: 'bg-amber-100 text-amber-700' }
     }
+    if (v.tipo_pago === 'mixto') return { text: 'Mixto', color: 'bg-purple-100 text-purple-700' }
     return { text: v.tipo_pago, color: 'bg-gray-100 text-gray-600' }
   }
 
-  const totalFiltrado = filtradas
-    .filter(v => v.estado === 'completada')
-    .reduce((acc, v) => acc + v.total, 0)
+  const hayFiltros = busqueda || filtroTipo !== 'todos' || filtroEstado !== 'todos' || filtroFiado !== 'todos'
 
   if (cargando) return (
     <div className="flex justify-center items-center h-64">
@@ -92,7 +151,10 @@ const Ventas = () => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Ventas</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{ventas.length} ventas registradas</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {meta.total} ventas registradas
+            {ventas.length < meta.total && ` · mostrando ${ventas.length}`}
+          </p>
         </div>
         <Link
           to="/ventas/nueva"
@@ -132,18 +194,16 @@ const Ventas = () => {
         </select>
       </div>
 
-      {/* Resumen filtrado */}
-      {filtradas.length > 0 && (
+      {/* Resumen — viene del servidor, sobre todas las ventas que cumplen el filtro */}
+      {meta.total > 0 && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 mb-4 flex items-center justify-between text-sm">
           <span className="text-emerald-700">
-            {filtradas.filter(v => v.estado === 'completada').length} ventas
-            {filtradas.filter(v => v.tipo_pago === 'fiado' && !v.fiado_pagada).length > 0 && (
-              <span className="ml-2 text-amber-600">
-                · {filtradas.filter(v => v.tipo_pago === 'fiado' && !v.fiado_pagada).length} fiados pendientes
-              </span>
+            {meta.total} ventas
+            {meta.fiados_pendientes > 0 && (
+              <span className="ml-2 text-amber-600">· {meta.fiados_pendientes} fiados pendientes</span>
             )}
           </span>
-          <span className="font-bold text-emerald-800">{formatGs(totalFiltrado)}</span>
+          <span className="font-bold text-emerald-800">{formatGs(meta.monto_total)}</span>
         </div>
       )}
 
@@ -163,11 +223,13 @@ const Ventas = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filtradas.length === 0 ? (
+            {ventas.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-400">No se encontraron ventas</td>
+                <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                  {hayFiltros ? 'No se encontraron ventas con esos filtros' : 'Todavía no hay ventas registradas'}
+                </td>
               </tr>
-            ) : filtradas.map(v => {
+            ) : ventas.map(v => {
               const badge = badgePago(v)
               return (
                 <tr key={v.id} className={`hover:bg-gray-50 transition-colors ${v.estado === 'anulada' ? 'opacity-50' : ''}`}>
@@ -201,6 +263,19 @@ const Ventas = () => {
             })}
           </tbody>
         </table>
+
+        {/* Sentinel: dispara la carga de la siguiente tanda */}
+        <div ref={sentinelRef} className="h-px" />
+
+        {cargandoMas && (
+          <p className="py-4 text-center text-sm text-gray-400">Cargando más ventas...</p>
+        )}
+
+        {!hayMas && ventas.length > 0 && (
+          <p className="py-4 text-center text-sm text-gray-400">
+            Fin de la lista · {ventas.length} de {meta.total}
+          </p>
+        )}
       </div>
     </div>
   )

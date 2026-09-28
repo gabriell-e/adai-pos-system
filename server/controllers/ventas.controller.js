@@ -20,21 +20,74 @@ const generarNumeroFactura = (config) => {
   return `${config.establecimiento}-${config.punto_expedicion}-${nro}`
 }
 
-// ─── GET ALL ────────────────────────────────────────────────────────────────
+// ─── GET ALL (paginado + filtros en SQL) ──────────────────────────────────
 const getAll = (req, res) => {
   try {
+    const {
+      pagina = '1', por_pagina = '100',
+      busqueda = '', tipo_pago = 'todos', estado = 'todos', fiado = 'todos'
+    } = req.query
+
+    // Acotado entre 1 y 500: un límite negativo o cero en SQLite
+    // devolvería la tabla entera y rompe la paginación.
+    const limite = Math.min(Math.max(Number(por_pagina) || 100, 1), 500)
+    const offset = (Math.max(Number(pagina) || 1, 1) - 1) * limite
+
+    const where = []
+    const params = []
+
+    if (busqueda) {
+      where.push('(v.numero_factura LIKE ? OR c.nombre LIKE ?)')
+      params.push(`%${busqueda}%`, `%${busqueda}%`)
+    }
+    if (tipo_pago && tipo_pago !== 'todos') {
+      where.push('v.tipo_pago = ?'); params.push(tipo_pago)
+    }
+    if (estado && estado !== 'todos') {
+      where.push('v.estado = ?'); params.push(estado)
+    }
+    if (fiado && fiado !== 'todos') {
+      if (fiado === 'pendiente')      where.push("v.tipo_pago = 'fiado' AND v.fiado_pagada = 0")
+      else if (fiado === 'pagada')    where.push("v.tipo_pago = 'fiado' AND v.fiado_pagada = 1")
+      else if (fiado === 'nofiado')   where.push("v.tipo_pago != 'fiado'")
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
     const ventas = db.prepare(`
       SELECT
-        v.*,
-        c.nombre  AS cliente_nombre,
-        c.ruc_ci  AS cliente_ruc_ci,
-        u.nombre  AS cajero_nombre
+        v.id, v.numero_factura, v.cliente_id,
+        v.usuario_id, v.tipo_pago, v.condicion_venta, v.descuento,
+        v.total, v.estado, v.fiado_pagada, v.creado_en,
+        c.nombre AS cliente_nombre,
+        c.ruc_ci AS cliente_ruc_ci,
+        u.nombre AS cajero_nombre
       FROM ventas v
-      LEFT JOIN clientes  c ON v.cliente_id  = c.id
-      LEFT JOIN usuarios  u ON v.usuario_id  = u.id
-      ORDER BY v.creado_en DESC
-    `).all()
-    res.json(ventas)
+      LEFT JOIN clientes c ON v.cliente_id = c.id
+      LEFT JOIN usuarios u ON v.usuario_id = u.id
+      ${whereSql}
+      ORDER BY v.creado_en DESC, v.id DESC
+      LIMIT ? OFFSET ?
+    `).all(...params, limite, offset)
+
+    const conteo = db.prepare(`
+      SELECT COUNT(*) AS total,
+             COALESCE(SUM(CASE WHEN v.estado = 'completada' THEN v.total ELSE 0 END), 0) AS monto_total,
+             COALESCE(SUM(CASE WHEN v.tipo_pago = 'fiado' AND v.fiado_pagada = 0 THEN 1 ELSE 0 END), 0) AS fiados_pendientes
+      FROM ventas v
+      LEFT JOIN clientes c ON v.cliente_id = c.id
+      ${whereSql}
+    `).get(...params)
+
+    res.json({
+      ventas,
+      total:        conteo.total,
+      monto_total:  conteo.monto_total,
+      fiados_pendientes: conteo.fiados_pendientes,
+      pagina:       Number(pagina) || 1,
+      por_pagina:   limite,
+      hay_mas:      offset + ventas.length < conteo.total
+    })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
