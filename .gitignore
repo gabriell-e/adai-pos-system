@@ -178,6 +178,25 @@ out/
 *.db-shm
 *.db.bak
 
+# Respaldos automáticos (contienen datos de clientes, nunca al repo)
+backups/
+
+# Copias forenses de bases dañadas o revertidas
+*.db.CORRUPTA_*
+*.db.REVERTIDA_*
+*-wal.CORRUPTA_*
+*-wal.REVERTIDA_*
+*-shm.CORRUPTA_*
+*-shm.REVERTIDA_*
+
+# Instancia única del servidor
+adai.lock
+
+# Respaldo en la nube: scripts sí van al repo, resultados no
+respaldos/nube/respaldos.log
+respaldos/nube/nube.lock
+respaldos/nube/ada-*.db
+
 # Archivos de backup/distribucion
 server.zip
 instalacion.html
