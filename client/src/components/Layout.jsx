@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
@@ -16,6 +16,7 @@ const navItems = [
   { path: '/usuarios',         label: 'Usuarios',     icon: '👤', rol: 'admin' },
   { path: '/caja',             label: 'Caja',         icon: '💰', rol: 'ambos' },
   { path: '/reportes',         label: 'Reportes',     icon: '📊', rol: 'admin' },
+  { path: '/respaldos',        label: 'Respaldos',    icon: '💾', rol: 'admin' },
   { path: '/configuracion',    label: 'Configuración',icon: '⚙️',  rol: 'admin' },
 ]
 
