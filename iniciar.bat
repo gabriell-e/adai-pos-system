@@ -1,5 +1,10 @@
 @echo off
 title Adai POS System
+
+:: La consola de Windows usa una codificacion vieja y los acentos y los
+:: simbolos de los mensajes salian rotos. Con 65001 se muestran bien.
+chcp 65001 >nul
+
 echo ================================
 echo   Iniciando Adai POS System
 echo ================================

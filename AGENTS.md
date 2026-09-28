@@ -44,6 +44,18 @@ hay que respetar estas reglas al usar la terminal:
    (`Get-Process node | Stop-Process -Force`) antes de tocar `adai.db`, y
    verificar afterward con `PRAGMA integrity_check`.
 
+## Cliente: dos puertos, no confundir
+- `localhost:3001` (server) sirve **`client/dist`**, un build compilado. No lee
+  el código fuente, así que los cambios del cliente **no** aparecen hasta
+  recompilar.
+- `localhost:5173` (Vite) sí lee el código fuente y recarga solo.
+- Para trabajar: usar el 5173, o dejar `npm run build:watch` corriendo en
+  `client`, o correr `npm run build` en `client` antes de probar en el 3001.
+- Al tocar archivos de `client/`, terminar siempre con `npm run build`, o el
+  3001 queda sirviendo la versión anterior.
+- El `index.html` se manda con `no-store` y los bundles con hash con
+  `immutable`, para que el navegador no siga mostrando una versión vieja.
+
 ## Base de datos
 - `server/adai.db` está en WAL y **nunca** se commitea.
 - Los respaldos se crean solo con `db.backup()`, nunca con `fs.copyFile`.

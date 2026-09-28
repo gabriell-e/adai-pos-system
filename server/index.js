@@ -42,10 +42,32 @@ app.get('/api/ping', (req, res) => {
 })
 
 // Servir frontend compilado
+//
+// El index.html NUNCA se cachea: es el archivo que apunta a los bundles, y si
+// el navegador guarda una copia vieja, sigue pidiendo los bundles anteriores.
+// Como los nombres llevan un hash, esos archivos ya no existen y el navegador
+// los saca de su propia caché: resultado, una interfaz vieja sin explicación.
+//
+// En cambio, los bundles y el CSS sí llevan hash en el nombre, así que si el
+// nombre es nuevo el contenido es nuevo: se cachean para siempre.
 const distDir = path.join(__dirname, '..', 'client', 'dist')
-app.use(express.static(distDir))
+
+app.use(express.static(distDir, {
+  index: false,
+  setHeaders: (res, filePath) => {
+    if (/[.-][0-9A-Za-z_-]{8,}\.(js|css|woff2?|svg|png|jpg|webp)$/.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+    } else {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+    }
+  }
+}))
+
+// Cualquier ruta que no sea API devuelve el index.html (para que funcione el
+// router del lado del cliente). Siempre sin caché, por lo mismo de arriba.
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) return next()
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
   res.sendFile(path.join(distDir, 'index.html'))
 })
 
@@ -56,6 +78,18 @@ backupService.iniciarProgramacion()
 app.listen(PORT, () => {
   console.log(`🚀 Adai POS corriendo en http://localhost:${PORT}`)
   console.log(`🕐 Timezone: ${process.env.TZ}`)
+
+  // Aviso de desarrollo: el 3001 no lee el código fuente, sirve client/dist.
+  // Sin esto se prueba una versión vieja sin darse cuenta.
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('')
+    console.log('ℹ️  MODO DESARROLLO: este puerto sirve client/dist, no tu código fuente.')
+    console.log('   Para ver los cambios del cliente:')
+    console.log('     - abrí el 5173 (Vite, se actualiza solo), o')
+    console.log('     - dejá "npm run build:watch" corriendo en client, o')
+    console.log('     - corré "npm run build" en client antes de probar acá.')
+    console.log('')
+  }
 
   // Primer respaldo al arrancar, para que nunca exista un día sin red
   backupService.crear({ automatico: true })
