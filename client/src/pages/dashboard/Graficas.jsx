@@ -35,7 +35,7 @@ const Graficas = ({ datos }) => {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <Tarjeta titulo={`Ventas y gastos por día · ${periodo}`} vacio={!serieDiaria.some(d => d.ventas || d.gastos)}>
+      <Tarjeta titulo={`Ventas, gastos y consumo por día · ${periodo}`} vacio={!serieDiaria.some(d => d.ventas || d.gastos || d.consumo)}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={serieDiaria}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -46,6 +46,8 @@ const Graficas = ({ datos }) => {
             {/* Con un solo día con ventas la línea no se ve si no hay punto */}
             <Line type="monotone" dataKey="ventas" name="Ventas" stroke="#059669" strokeWidth={2} dot={{ r: 2.5 }} />
             <Line type="monotone" dataKey="gastos" name="Gastos" stroke="#ef4444" strokeWidth={2} dot={{ r: 2.5 }} />
+            {/* Consumo propio: sale de la caja sin ser venta ni gasto */}
+            <Line type="monotone" dataKey="consumo" name="Consumo" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="4 3" dot={{ r: 2.5 }} />
           </LineChart>
         </ResponsiveContainer>
       </Tarjeta>

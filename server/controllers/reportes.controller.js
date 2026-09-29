@@ -443,8 +443,27 @@ const graficas = (req, res) => {
       GROUP BY dia
     `).all(desde)
 
+    // ── Consumo propio por día
+    //
+    // Se valora a precio de compra, no a precio de venta: el consumo no genera
+    // ninguna venta, así que la pérdida real es lo que costó comprar esos
+    // productos. Anular un consumo lo borra de la tabla, así que acá no hay
+    // que filtrar por estado.
+    const consumoPorDia = db.prepare(`
+      SELECT
+        date(c.creado_en) AS dia,
+        SUM(c.cantidad) AS unidades,
+        SUM(c.cantidad * COALESCE(p.precio_compra, 0)) AS monto
+      FROM consumo_propio c
+      JOIN productos p ON c.producto_id = p.id
+      WHERE date(c.creado_en) >= ?
+      GROUP BY dia
+    `).all(desde)
+
     const totalVentas  = porDia.reduce((a, d) => a + d.monto, 0)
     const totalGastos  = gastosPorDia.reduce((a, d) => a + d.monto, 0)
+    const totalConsumo = consumoPorDia.reduce((a, d) => a + d.monto, 0)
+    const unidadesConsumo = consumoPorDia.reduce((a, d) => a + d.unidades, 0)
     const cantidadVentas = porDia.reduce((a, d) => a + d.ventas, 0)
 
     res.json({
@@ -455,14 +474,19 @@ const graficas = (req, res) => {
         cantidad_ventas: cantidadVentas,
         ticket_promedio: cantidadVentas ? Math.round(totalVentas / cantidadVentas) : 0,
         total_gastos: totalGastos,
-        // Se muestra aparte, la ganancia bruta no se toca
-        resultado_tras_gastos: totalVentas - totalGastos
+        // El consumo propio también sale de la caja, aunque no figure en
+        // gastos: son productos que se llevaron y no se vendieron. Por eso
+        // "tras gastos" descuenta las dos cosas.
+        total_consumo: totalConsumo,
+        unidades_consumo: unidadesConsumo,
+        resultado_tras_gastos: totalVentas - totalGastos - totalConsumo
       },
       por_dia: porDia.map(d => ({ dia: d.dia, monto: d.monto, ventas: d.ventas })),
       por_pago: porPago.map(p => ({ tipo: p.tipo, monto: p.monto, ventas: p.ventas })),
       top_productos: topProductos,
       por_hora: porHora.map(h => ({ hora: h.hora, monto: h.monto, ventas: h.ventas })),
-      gastos_por_dia: gastosPorDia
+      gastos_por_dia: gastosPorDia,
+      consumo_por_dia: consumoPorDia
     })
   } catch (err) {
     res.status(500).json({ error: err.message })

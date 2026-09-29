@@ -8,10 +8,14 @@ const Graficas = lazy(() => import('./Graficas'))
 const formatGs    = n => `Gs. ${Number(n || 0).toLocaleString('es-PY')}`
 const formatFecha = f => new Date(f).toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' })
 
-const Stat = ({ label, valor, sub, color = 'text-gray-800' }) => (
+// `grande` agranda el número para los montos que se leen de un vistazo. Sin
+// él queda igual que los otros cuadros, con el mismo tamaño de fuente.
+// El monto grande baja un escalón en pantallas chicas y puede partirse, porque
+// en guaraníes un total de siete u ocho dígitos no entra en un solo renglón.
+const Stat = ({ label, valor, sub, color = 'text-gray-800', grande = false }) => (
   <div className="bg-white rounded-xl shadow-sm p-5">
     <p className="text-sm text-gray-500 mb-1">{label}</p>
-    <p className={`text-2xl font-bold ${color}`}>{valor}</p>
+    <p className={`font-bold break-words ${grande ? 'text-3xl sm:text-4xl leading-tight' : 'text-2xl'} ${color}`}>{valor}</p>
     {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
   </div>
 )
@@ -26,16 +30,25 @@ const Dashboard = () => {
   const [graf, setGraf]               = useState(null)
   const [cargandoGraf, setCargandoGraf] = useState(true)
 
+  // 'monto' muestra el total de ventas grande y la cantidad abajo (lo que
+  // pidió el local). 'cantidad' es el orden anterior: cantidad grande, total
+  // abajo, con el ticket promedio al lado.
+  const [ordenVentas, setOrdenVentas] = useState('monto')
+
+  const [consumosHoy, setConsumosHoy] = useState([])
+
   useEffect(() => {
     const cargar = async () => {
-      const [ventasHoyRes, stockRes, cajaRes] = await Promise.all([
+      const [ventasHoyRes, stockRes, cajaRes, consumoRes] = await Promise.all([
         api.get('/ventas/hoy'),
         api.get('/productos/low-stock'),
-        api.get('/caja/activa').catch(() => ({ data: null }))
+        api.get('/caja/activa').catch(() => ({ data: null })),
+        api.get('/consumo').catch(() => ({ data: [] }))
       ])
       setVentas(ventasHoyRes.data)
       setLowStock(stockRes.data)
       setCajaActiva(cajaRes.data)
+      setConsumosHoy(consumoRes.data)
       setCargando(false)
     }
     cargar()
@@ -59,6 +72,12 @@ const Dashboard = () => {
   const fiadoPendiente = ventasFiado.reduce((acc, v) => acc + v.total, 0)
   const gananciaNetaHoy = ventasHoy.reduce((acc, v) => acc + (v.total - (v.costo_total || 0)), 0)
 
+  // Consumo propio de hoy, a precio de compra (que es lo que sale de la caja).
+  // El endpoint devuelve producto_precio_compra junto con la cantidad.
+  const consumoHoy = consumosHoy
+    .filter(c => new Date(c.creado_en).toLocaleDateString('es-PY') === hoy)
+    .reduce((acc, c) => acc + (c.cantidad * (c.producto_precio_compra || 0)), 0)
+
   // Ventas y gastos por día, juntos para poder comparar
   //
   // El backend solo devuelve los días que tienen movimiento, así que se arma la
@@ -69,6 +88,7 @@ const Dashboard = () => {
     if (!graf) return []
     const ventas = new Map(graf.por_dia.map(d => [d.dia, d.monto]))
     const gastos = new Map(graf.gastos_por_dia.map(g => [g.dia, g.monto]))
+    const consumo = new Map((graf.consumo_por_dia || []).map(c => [c.dia, c.monto]))
 
     // 'AAAA-MM-DD' -> 'DD/MM'. Antes se recortaba con slice(5) y quedaba
     // 'MM-DD' (formato americano), y al ordenar por esa etiqueta los meses
@@ -84,7 +104,8 @@ const Dashboard = () => {
         dia: etiqueta(dia),
         fecha: dia,
         ventas: ventas.get(dia) || 0,
-        gastos: gastos.get(dia) || 0
+        gastos: gastos.get(dia) || 0,
+        consumo: consumo.get(dia) || 0
       })
       // Mediodía en UTC para que el cambio de día no se corra por la zona
       const f = new Date(`${dia}T12:00:00Z`)
@@ -145,25 +166,54 @@ const Dashboard = () => {
 
       {/* Stats del día */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat label="Ventas hoy" valor={ventasHoy.length} sub={`Total: ${formatGs(totalHoy)}`} color="text-emerald-600" />
-        <Stat label="Ticket promedio" valor={ventasHoy.length > 0 ? formatGs(Math.round(totalHoy / ventasHoy.length)) : '—'} sub="Por venta" />
+        {/* El local prefiere ver el monto en grande y la cantidad de ventas
+            abajo, al revés de como estaba. Con el switch se vuelve al orden
+            anterior sin tocar el código. */}
+        <Stat
+          label="Ventas hoy"
+          valor={ordenVentas === 'monto' ? formatGs(totalHoy) : ventasHoy.length}
+          sub={ordenVentas === 'monto'
+            ? `${ventasHoy.length} ventas`
+            : `Total: ${formatGs(totalHoy)}`}
+          color="text-emerald-600"
+          grande={ordenVentas === 'monto'}
+        />
+        <Stat
+          label={ordenVentas === 'monto' ? 'Ticket promedio' : 'Consumo propio hoy'}
+          valor={ordenVentas === 'monto'
+            ? (ventasHoy.length > 0 ? formatGs(Math.round(totalHoy / ventasHoy.length)) : '—')
+            : formatGs(consumoHoy)}
+          sub={ordenVentas === 'monto' ? 'Por venta' : 'A precio de compra'}
+          color={ordenVentas === 'monto' ? 'text-gray-800' : (consumoHoy > 0 ? 'text-purple-600' : 'text-gray-800')}
+          grande={ordenVentas === 'monto'}
+        />
         <Stat label="Fiado pendiente" valor={formatGs(fiadoPendiente)} sub={`${ventasFiado.length} ventas sin cobrar`} color={fiadoPendiente > 0 ? 'text-amber-600' : 'text-gray-800'} />
         <Stat label="Ganancia neta hoy" valor={formatGs(gananciaNetaHoy)} sub="Ventas - Costos" color={gananciaNetaHoy >= 0 ? 'text-emerald-600' : 'text-red-600'} />
       </div>
 
       {/* Gráficas */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-base font-semibold text-gray-800">Gráficas</h2>
-        <select
-          value={periodo}
-          onChange={e => setPeriodo(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-        >
-          <option value="hoy">Hoy</option>
-          <option value="7dias">Últimos 7 días</option>
-          <option value="30dias">Últimos 30 días</option>
-          <option value="mes">Mes actual</option>
-        </select>
+        <div className="flex items-center gap-2">
+          {/* Switch del orden de "Ventas hoy" */}
+          <button
+            onClick={() => setOrdenVentas(o => (o === 'monto' ? 'cantidad' : 'monto'))}
+            className="text-xs text-gray-500 hover:text-emerald-700 font-medium px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            title="Cambiar entre total grande y cantidad de ventas"
+          >
+            {ordenVentas === 'monto' ? 'Ver cantidad de ventas' : 'Ver total de ventas'}
+          </button>
+          <select
+            value={periodo}
+            onChange={e => setPeriodo(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          >
+            <option value="hoy">Hoy</option>
+            <option value="7dias">Últimos 7 días</option>
+            <option value="30dias">Últimos 30 días</option>
+            <option value="mes">Mes actual</option>
+          </select>
+        </div>
       </div>
 
       {cargandoGraf ? (
@@ -177,13 +227,28 @@ const Dashboard = () => {
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Stat label="Ventas del período" valor={formatGs(graf.resumen.monto_ventas)} sub={`${graf.resumen.cantidad_ventas} ventas`} color="text-emerald-600" />
-            <Stat label="Ticket promedio" valor={formatGs(graf.resumen.ticket_promedio)} sub={graf.periodo} />
+            <Stat
+              label="Ventas del período"
+              valor={formatGs(graf.resumen.monto_ventas)}
+              sub={`${graf.resumen.cantidad_ventas} ventas`}
+              color="text-emerald-600"
+            />
+            {/* Antes iba el ticket promedio acá, pero no se usa para decidir
+                nada. El consumo propio sí: son productos que salen del local
+                sin generar venta, y eso se ve en el resultado final. */}
+            <Stat
+              label="Consumo propio"
+              valor={formatGs(graf.resumen.total_consumo)}
+              sub={graf.resumen.unidades_consumo > 0
+                ? `${graf.resumen.unidades_consumo} unidades a precio de compra`
+                : 'Sin consumo en el período'}
+              color={graf.resumen.total_consumo > 0 ? 'text-purple-600' : 'text-gray-800'}
+            />
             <Stat label="Gastos personales" valor={formatGs(graf.resumen.total_gastos)} sub="Del período" color="text-red-500" />
             <Stat
-              label="Tras gastos"
+              label="Tras gastos y consumo"
               valor={formatGs(graf.resumen.resultado_tras_gastos)}
-              sub="Ventas - gastos"
+              sub="Ventas - gastos - consumo"
               color={graf.resumen.resultado_tras_gastos >= 0 ? 'text-emerald-600' : 'text-red-600'}
             />
           </div>
