@@ -20,6 +20,34 @@ const Stat = ({ label, valor, sub, color = 'text-gray-800', grande = false }) =>
   </div>
 )
 
+// Desglose de cómo se cobró el día. El local pidió ver efectivo, transferencia
+// y deuda por separado, con la suma y el total.
+//
+// "Otros" solo aparece si hay algo: las ventas pueden pagarse con QR, débito o
+// tarjeta, y si se omitieran el total de abajo no cerraría con "Ventas hoy".
+const StatPagos = ({ lineas, total }) => {
+  const conDatos = lineas.filter(l => l.monto > 0)
+  return (
+    <div className="bg-white rounded-xl shadow-sm p-5">
+      <p className="text-sm text-gray-500 mb-2">Cobrado hoy por medio</p>
+      <div className="space-y-1">
+        {conDatos.length === 0 ? (
+          <p className="text-sm text-gray-400">Sin ventas hoy</p>
+        ) : conDatos.map(l => (
+          <div key={l.clave} className="flex items-center justify-between text-sm">
+            <span className="text-gray-600">{l.etiqueta}</span>
+            <span className={`font-medium ${l.clase}`}>{formatGs(l.monto)}</span>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-between border-t mt-2 pt-2">
+        <span className="text-sm text-gray-500">Total</span>
+        <span className="font-bold text-gray-800">{formatGs(total)}</span>
+      </div>
+    </div>
+  )
+}
+
 const Dashboard = () => {
   const [ventas, setVentas]           = useState([])
   const [lowStock, setLowStock]       = useState([])
@@ -77,6 +105,48 @@ const Dashboard = () => {
   const consumoHoy = consumosHoy
     .filter(c => new Date(c.creado_en).toLocaleDateString('es-PY') === hoy)
     .reduce((acc, c) => acc + (c.cantidad * (c.producto_precio_compra || 0)), 0)
+
+  // Desglose del día por medio de pago.
+  //
+  // Las ventas mixtas guardan el reparto en pago_detalle, que viene como texto
+  // JSON. Sin abrirlo, una venta de 5.000 en efectivo y 2.500 por transferencia
+  // caería entera en "otros" y ni el efectivo ni la transferencia la sumarían.
+  const pagoDetalleDe = (venta) => {
+    if (!venta.pago_detalle) return null
+    if (typeof venta.pago_detalle === 'object') return venta.pago_detalle
+    try {
+      const d = JSON.parse(venta.pago_detalle)
+      return Array.isArray(d) && d.length ? d : null
+    } catch (_) {
+      return null
+    }
+  }
+
+  const pagos = (() => {
+    const t = { efectivo: 0, transferencia: 0, deuda: 0, otros: 0 }
+    for (const v of ventasHoy) {
+      if (v.tipo_pago === 'fiado') { t.deuda += v.total; continue }
+
+      const detalle = pagoDetalleDe(v)
+      if (detalle) {
+        for (const p of detalle) {
+          if (p.tipo === 'efectivo')         t.efectivo     += p.monto || 0
+          else if (p.tipo === 'transferencia') t.transferencia += p.monto || 0
+          else if (p.tipo === 'fiado')        t.deuda        += p.monto || 0
+          else                                t.otros        += p.monto || 0
+        }
+        continue
+      }
+
+      if (v.tipo_pago === 'efectivo')          t.efectivo     += v.total
+      else if (v.tipo_pago === 'transferencia') t.transferencia += v.total
+      else if (v.tipo_pago === 'fiado')         t.deuda        += v.total
+      else                                     t.otros        += v.total
+    }
+    return t
+  })()
+
+  const pagosTotal = pagos.efectivo + pagos.transferencia + pagos.deuda + pagos.otros
 
   // Ventas y gastos por día, juntos para poder comparar
   //
@@ -178,17 +248,22 @@ const Dashboard = () => {
           color="text-emerald-600"
           grande={ordenVentas === 'monto'}
         />
-        <Stat
-          label={ordenVentas === 'monto' ? 'Ticket promedio' : 'Consumo propio hoy'}
-          valor={ordenVentas === 'monto'
-            ? (ventasHoy.length > 0 ? formatGs(Math.round(totalHoy / ventasHoy.length)) : '—')
-            : formatGs(consumoHoy)}
-          sub={ordenVentas === 'monto' ? 'Por venta' : 'A precio de compra'}
-          color={ordenVentas === 'monto' ? 'text-gray-800' : (consumoHoy > 0 ? 'text-purple-600' : 'text-gray-800')}
-          grande={ordenVentas === 'monto'}
+        <StatPagos
+          lineas={[
+            { clave: 'efectivo',     etiqueta: 'Efectivo',      monto: pagos.efectivo,     clase: 'text-emerald-600' },
+            { clave: 'transferencia', etiqueta: 'Transferencia', monto: pagos.transferencia, clase: 'text-blue-600' },
+            { clave: 'deuda',        etiqueta: 'Deuda',         monto: pagos.deuda,        clase: 'text-amber-600' },
+            { clave: 'otros',        etiqueta: 'Otros',         monto: pagos.otros,        clase: 'text-purple-600' }
+          ]}
+          total={pagosTotal}
         />
         <Stat label="Fiado pendiente" valor={formatGs(fiadoPendiente)} sub={`${ventasFiado.length} ventas sin cobrar`} color={fiadoPendiente > 0 ? 'text-amber-600' : 'text-gray-800'} />
-        <Stat label="Ganancia neta hoy" valor={formatGs(gananciaNetaHoy)} sub="Ventas - Costos" color={gananciaNetaHoy >= 0 ? 'text-emerald-600' : 'text-red-600'} />
+        <Stat
+          label="Ganancia neta hoy"
+          valor={formatGs(gananciaNetaHoy)}
+          sub={consumoHoy > 0 ? `Ventas - Costos - Consumo ${formatGs(consumoHoy)}` : 'Ventas - Costos'}
+          color={gananciaNetaHoy >= 0 ? 'text-emerald-600' : 'text-red-600'}
+        />
       </div>
 
       {/* Gráficas */}

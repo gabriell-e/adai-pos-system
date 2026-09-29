@@ -5,6 +5,10 @@ import {
 
 const formatGs = n => `Gs. ${Number(n || 0).toLocaleString('es-PY')}`
 
+// Los ejes mostran el número entero con punto de miles. La abreviatura "k" es
+// de dólares: acá 16.000 son dieciséis mil guaraníes, no dieciséis mil algo.
+const formatEje = v => Number(v || 0).toLocaleString('es-PY', { maximumFractionDigits: 0 })
+
 const COLORES = ['#059669', '#0ea5e9', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6', '#84cc16']
 
 const Tarjeta = ({ titulo, children, vacio }) => (
@@ -40,7 +44,7 @@ const Graficas = ({ datos }) => {
           <LineChart data={serieDiaria}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="dia" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={18} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${Math.round(v / 1000)}k`} width={45} />
+            <YAxis tick={{ fontSize: 11 }} tickFormatter={formatEje} width={64} />
             <Tooltip content={<TooltipFmt />} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             {/* Con un solo día con ventas la línea no se ve si no hay punto */}
@@ -77,7 +81,7 @@ const Graficas = ({ datos }) => {
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={datosProductos} layout="vertical" margin={{ left: 10, right: 15 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => `${Math.round(v / 1000)}k`} />
+            <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={formatEje} />
             <YAxis type="category" dataKey="nombre" tick={{ fontSize: 11 }} width={140} />
             <Tooltip formatter={v => formatGs(v)} />
             <Bar dataKey="monto" fill="#059669" radius={[0, 4, 4, 0]} />
@@ -90,7 +94,7 @@ const Graficas = ({ datos }) => {
           <BarChart data={datosHora}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="hora" tick={{ fontSize: 11 }} interval={1} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${Math.round(v / 1000)}k`} width={45} />
+            <YAxis tick={{ fontSize: 11 }} tickFormatter={formatEje} width={64} />
             <Tooltip formatter={v => formatGs(v)} />
             <Bar dataKey="monto" name="Ventas" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
           </BarChart>
