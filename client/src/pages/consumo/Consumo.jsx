@@ -141,7 +141,10 @@ const Consumo = () => {
   const consumosSemana = filtrarPorPeriodo(consumos, 'semana')
   const consumosMes = filtrarPorPeriodo(consumos, 'mes')
 
-  const perdida = (lista) => lista.reduce((acc, c) => acc + (c.producto_precio_venta || 0) * c.cantidad, 0)
+  // El consumo se mide a precio de compra, no a precio de venta. No hubo
+  // venta, asi que la plata que salio de la caja es la que costo comprar esos
+  // productos. Antes se multiplicaba por el precio de venta y el numero no
+  // cuadraba con el del dashboard, que ya usa costo.
   const costo = (lista) => lista.reduce((acc, c) => acc + (c.producto_precio_compra || 0) * c.cantidad, 0)
 
   const consumosFiltrados = filtrarPorPeriodo(consumos, filtroFecha)
@@ -163,16 +166,11 @@ const Consumo = () => {
           <p className="text-sm text-gray-500 mt-0.5">Registrá productos retirados para uso interno</p>
         </div>
 
-        {/* Stats de pérdida */}
+        {/* Costo del consumo, a precio de compra */}
         <div className="grid grid-cols-3 gap-3">
-          <Stat label="Pérdida hoy" valor={formatGs(perdida(consumosHoy))} color="text-red-600" />
-          <Stat label="Pérdida semana" valor={formatGs(perdida(consumosSemana))} color="text-orange-600" />
-          <Stat label="Pérdida mes" valor={formatGs(perdida(consumosMes))} color="text-red-700" />
-        </div>
-        <div className="grid grid-cols-3 gap-3 -mt-2">
-          <Stat label="Costo hoy" valor={formatGs(costo(consumosHoy))} color="text-gray-600" />
-          <Stat label="Costo semana" valor={formatGs(costo(consumosSemana))} color="text-gray-600" />
-          <Stat label="Costo mes" valor={formatGs(costo(consumosMes))} color="text-gray-600" />
+          <Stat label="Costo hoy" valor={formatGs(costo(consumosHoy))} color="text-red-600" />
+          <Stat label="Costo semana" valor={formatGs(costo(consumosSemana))} color="text-red-600" />
+          <Stat label="Costo mes" valor={formatGs(costo(consumosMes))} color="text-red-700" />
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-5 space-y-4">
@@ -295,15 +293,15 @@ const Consumo = () => {
             <>
               <div className="px-5 py-2 bg-gray-50 border-b flex items-center justify-between text-xs">
                 <span className="text-gray-500">{consumosFiltrados.length} registros</span>
-                <span className="font-semibold text-red-600">Pérdida: {formatGs(perdida(consumosFiltrados))}</span>
+                <span className="font-semibold text-red-600">Costo: {formatGs(costo(consumosFiltrados))}</span>
               </div>
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
                   <tr>
                     <th className="px-4 py-3 text-left">Producto</th>
                     <th className="px-4 py-3 text-center">Cantidad</th>
-                    <th className="px-4 py-3 text-right">P. Venta</th>
-                    <th className="px-4 py-3 text-right">Pérdida</th>
+                    <th className="px-4 py-3 text-right">P. Compra</th>
+                    <th className="px-4 py-3 text-right">Costo</th>
                     <th className="px-4 py-3 left">Motivo</th>
                     <th className="px-4 py-3 text-left">Fecha</th>
                     <th className="px-4 py-3 text-center w-20"></th>
@@ -314,9 +312,9 @@ const Consumo = () => {
                     <tr key={c.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-800">{c.producto_nombre}</td>
                       <td className="px-4 py-3 text-center">{formatCantidad(c)}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{formatGs(c.producto_precio_venta)}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{formatGs(c.producto_precio_compra)}</td>
                       <td className="px-4 py-3 text-right font-medium text-red-600">
-                        {formatGs((c.producto_precio_venta || 0) * c.cantidad)}
+                        {formatGs((c.producto_precio_compra || 0) * c.cantidad)}
                       </td>
                       <td className="px-4 py-3 text-gray-500">{c.motivo || <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{c.creado_en}</td>
