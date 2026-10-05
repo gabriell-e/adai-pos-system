@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
 import { buscarProductos } from '../../utils/buscar'
+import { numeroDecimal } from '../../utils/validar'
 
 const formatGs = n => `Gs. ${Number(n).toLocaleString('es-PY')}`
 
@@ -411,11 +412,11 @@ const Productos = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Precio compra *</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={form.precio_compra}
-                    onChange={e => setForm({ ...form, precio_compra: e.target.value })}
+                    onChange={e => setForm({ ...form, precio_compra: numeroDecimal(e.target.value) })}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    min="0"
                     required
                   />
                 </div>
@@ -423,11 +424,11 @@ const Productos = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Precio venta *</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={form.precio_venta}
-                    onChange={e => setForm({ ...form, precio_venta: e.target.value })}
+                    onChange={e => setForm({ ...form, precio_venta: numeroDecimal(e.target.value) })}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    min="0"
                     required
                   />
                 </div>
@@ -435,22 +436,22 @@ const Productos = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Stock inicial</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={form.stock}
-                    onChange={e => setForm({ ...form, stock: e.target.value })}
+                    onChange={e => setForm({ ...form, stock: numeroDecimal(e.target.value) })}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    min="0"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Stock mínimo</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={form.stock_minimo}
-                    onChange={e => setForm({ ...form, stock_minimo: e.target.value })}
+                    onChange={e => setForm({ ...form, stock_minimo: numeroDecimal(e.target.value) })}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    min="0"
                   />
                 </div>
 
@@ -608,12 +609,11 @@ const Productos = () => {
                         Unidades por paquete *
                       </label>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
                         value={formPres.unidades_por_paquete}
-                        onChange={e => setFormPres({ ...formPres, unidades_por_paquete: e.target.value })}
+                        onChange={e => setFormPres({ ...formPres, unidades_por_paquete: numeroDecimal(e.target.value) })}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        min="0.01"
-                        step="0.01"
                       />
                     </div>
                     <div>
@@ -628,21 +628,21 @@ const Productos = () => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Precio venta</label>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
                         value={formPres.precio_venta}
-                        onChange={e => setFormPres({ ...formPres, precio_venta: e.target.value })}
+                        onChange={e => setFormPres({ ...formPres, precio_venta: numeroDecimal(e.target.value) })}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        min="0"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Precio compra</label>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
                         value={formPres.precio_compra}
-                        onChange={e => setFormPres({ ...formPres, precio_compra: e.target.value })}
+                        onChange={e => setFormPres({ ...formPres, precio_compra: numeroDecimal(e.target.value) })}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        min="0"
                       />
                     </div>
                     <div className="col-span-2 flex gap-4">

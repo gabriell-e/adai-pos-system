@@ -1,5 +1,6 @@
 const { db } = require('../db')
 const { ahora } = require('../utils/fecha')
+const { normalizarTexto } = require('../utils/texto')
 
 // Extrae IVA incluido en el precio (Paraguay)
 const calcularIVA = (subtotal, tasa) => {
@@ -36,9 +37,33 @@ const getAll = (req, res) => {
     const where = []
     const params = []
 
-    if (busqueda) {
-      where.push('(v.numero_factura LIKE ? OR c.nombre LIKE ?)')
-      params.push(`%${busqueda}%`, `%${busqueda}%`)
+    // Con búsqueda, el orden deja de ser solo por fecha: primero sale lo que el
+    // local escribió exacto, después lo que empieza con eso, y al final lo que
+    // lo tiene en el medio. La factura gana al cliente porque se busca por
+    // número la mayoría de las veces.
+    let ordenSql = 'ORDER BY v.creado_en DESC, v.id DESC'
+    let ordenParams = []
+
+    if (busqueda && busqueda.trim()) {
+      const q = normalizarTexto(busqueda)
+
+      // norm() en las dos columnas y en el patrón: sin las tres partes, "jose"
+      // no encuentra "José".
+      where.push('(norm(v.numero_factura) LIKE ? OR norm(c.nombre) LIKE ?)')
+      params.push(`%${q}%`, `%${q}%`)
+
+      ordenSql = `
+        ORDER BY
+          CASE
+            WHEN norm(v.numero_factura) = ? THEN 0
+            WHEN norm(c.nombre)        = ? THEN 1
+            WHEN norm(c.nombre) LIKE ?      THEN 2
+            WHEN norm(v.numero_factura) LIKE ? THEN 3
+            ELSE 4
+          END,
+          v.creado_en DESC, v.id DESC
+      `
+      ordenParams = [q, q, `${q}%`, `${q}%`]
     }
     if (tipo_pago && tipo_pago !== 'todos') {
       where.push('v.tipo_pago = ?'); params.push(tipo_pago)
@@ -66,9 +91,9 @@ const getAll = (req, res) => {
       LEFT JOIN clientes c ON v.cliente_id = c.id
       LEFT JOIN usuarios u ON v.usuario_id = u.id
       ${whereSql}
-      ORDER BY v.creado_en DESC, v.id DESC
+      ${ordenSql}
       LIMIT ? OFFSET ?
-    `).all(...params, limite, offset)
+    `).all(...params, ...ordenParams, limite, offset)
 
     const conteo = db.prepare(`
       SELECT COUNT(*) AS total,

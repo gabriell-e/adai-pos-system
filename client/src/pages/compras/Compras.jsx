@@ -1,9 +1,87 @@
 import { useState, useEffect } from 'react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
+import { buscarProductos } from '../../utils/buscar'
+import { numeroDecimal } from '../../utils/validar'
 
 const formatGs    = n => `Gs. ${Number(n).toLocaleString('es-PY')}`
 const formatFecha = f => new Date(f).toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' })
+
+// Selector de producto con buscador. Antes era un <select> con todos los
+// productos del local, que con varios cientos habia que recorrer a ciegas. Usa
+// el mismo orden por prioridad que la pantalla de venta: al escribir "leche"
+// sale primero "Leche", no "Crema de leche".
+const SelectorProducto = ({ productos, value, onChange }) => {
+  const [texto, setTexto]     = useState('')
+  const [abierto, setAbierto] = useState(false)
+
+  const elegido = productos.find(p => p.id === Number(value))
+
+  const coincidencias = texto.trim() ? buscarProductos(productos, texto) : []
+  const aMostrar = coincidencias.slice(0, 8)
+
+  const elegir = (p) => {
+    onChange(p.id)
+    setTexto('')
+    setAbierto(false)
+  }
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={texto}
+        placeholder={elegido ? elegido.nombre : 'Buscar producto...'}
+        onChange={e => { setTexto(e.target.value); setAbierto(true) }}
+        onFocus={() => setAbierto(true)}
+        onBlur={() => setTimeout(() => setAbierto(false), 150)}
+        className={`w-full border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 ${elegido ? 'border-emerald-300 bg-emerald-50/40 text-gray-800' : 'border-gray-300'}`}
+      />
+      {elegido && (
+        <button
+          type="button"
+          onMouseDown={e => e.preventDefault()}
+          onClick={() => { onChange(''); setTexto('') }}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-red-500 text-xs"
+          title="Quitar producto"
+        >✕</button>
+      )}
+
+      {abierto && texto.trim() && aMostrar.length > 0 && (
+        <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg z-30 mt-1 overflow-hidden">
+          <div className="max-h-64 overflow-y-auto">
+            {aMostrar.map(p => (
+              <button
+                key={p.id}
+                type="button"
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => elegir(p)}
+                className="w-full text-left px-3 py-2 hover:bg-emerald-50 border-b last:border-0"
+              >
+                <p className="text-sm text-gray-800">{p.nombre}</p>
+                <p className="text-xs text-gray-400">
+                  Stock: {p.stock} {p.unidad || 'u'}
+                  {p.codigo_barras ? ` · Cód. ${p.codigo_barras}` : ''}
+                </p>
+              </button>
+            ))}
+          </div>
+          {coincidencias.length > aMostrar.length && (
+            <p className="px-3 py-2 text-xs text-gray-400 bg-gray-50 border-t">
+              {coincidencias.length} coincidencias, se muestran las primeras {aMostrar.length}
+            </p>
+          )}
+        </div>
+      )}
+
+      {abierto && texto.trim() && aMostrar.length === 0 && (
+        <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg z-30 mt-1 px-3 py-2 text-sm text-gray-400">
+          Ningún producto coincide con "{texto}"
+        </div>
+      )}
+    </div>
+  )
+}
 
 const Compras = () => {
   const { usuario } = useAuth()
@@ -332,16 +410,11 @@ const Compras = () => {
                     return (
                       <div key={idx} className="grid grid-cols-12 gap-2 items-center">
                         <div className="col-span-4">
-                          <select
+                          <SelectorProducto
+                            productos={productos}
                             value={item.producto_id}
-                            onChange={e => seleccionarProducto(idx, e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          >
-                            <option value="">Seleccionar...</option>
-                            {productos.map(p => (
-                              <option key={p.id} value={p.id}>{p.nombre}</option>
-                            ))}
-                          </select>
+                            onChange={id => seleccionarProducto(idx, id)}
+                          />
                         </div>
                         <div className="col-span-2">
                           <select
@@ -361,23 +434,22 @@ const Compras = () => {
                         </div>
                         <div className="col-span-2">
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             value={item.cantidad}
-                            onChange={e => actualizarItem(idx, 'cantidad', e.target.value)}
+                            onChange={e => actualizarItem(idx, 'cantidad', numeroDecimal(e.target.value))}
                             placeholder="Cant."
                             className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                            min="0"
-                            step="1"
                           />
                         </div>
                         <div className="col-span-3">
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             value={item.precio_unitario}
-                            onChange={e => actualizarItem(idx, 'precio_unitario', e.target.value)}
+                            onChange={e => actualizarItem(idx, 'precio_unitario', numeroDecimal(e.target.value))}
                             placeholder="Precio compra"
                             className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                            min="0"
                           />
                         </div>
                         <div className="col-span-1 text-center">

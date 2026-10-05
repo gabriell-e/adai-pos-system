@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
+import { buscarProductos } from '../../utils/buscar'
+import { numeroDecimal } from '../../utils/validar'
 
 const formatGs = n => `Gs. ${Number(n || 0).toLocaleString('es-PY')}`
 
@@ -21,6 +23,7 @@ const Consumo = () => {
 
   const [busqueda, setBusqueda]         = useState('')
   const [resultados, setResultados]     = useState([])
+  const [totalResultados, setTotalResultados] = useState(0)
   const [productoSeleccionado, setProductoSeleccionado] = useState(null)
   const busquedaRef                     = useRef()
 
@@ -48,14 +51,12 @@ const Consumo = () => {
   useEffect(() => { cargarDatos() }, [])
 
   useEffect(() => {
-    if (!busqueda.trim()) return setResultados([])
-    const lower = busqueda.toLowerCase()
-    setResultados(
-      productos.filter(p =>
-        p.nombre.toLowerCase().includes(lower) ||
-        p.codigo_barras?.includes(busqueda)
-      ).slice(0, 6)
-    )
+    if (!busqueda.trim()) { setResultados([]); return setTotalResultados(0) }
+    // Mismo orden por prioridad que el buscador de productos: al escribir
+    // "leche" tiene que salir primero "Leche", no "Crema de leche".
+    const todos = buscarProductos(productos, busqueda)
+    setTotalResultados(todos.length)
+    setResultados(todos.slice(0, 8))
   }, [busqueda, productos])
 
   const seleccionarProducto = (p) => {
@@ -78,7 +79,7 @@ const Consumo = () => {
     setError('')
 
     if (!productoSeleccionado) return setError('Seleccioná un producto')
-    const cant = parseFloat(cantidad)
+    const cant = parseFloat(numeroDecimal(cantidad))
     if (!cant || cant <= 0) return setError('Ingresá una cantidad válida')
     if (cant > productoSeleccionado.stock) return setError(`Stock disponible: ${productoSeleccionado.stock}`)
 
@@ -201,6 +202,7 @@ const Consumo = () => {
                 />
                 {resultados.length > 0 && (
                   <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg z-20 mt-1 overflow-hidden">
+                    <div className="max-h-80 overflow-y-auto">
                     {resultados.map(p => (
                       <button
                         key={p.id}
@@ -218,6 +220,12 @@ const Consumo = () => {
                         <p className="text-sm font-semibold text-emerald-600">{formatGs(p.precio_venta)}</p>
                       </button>
                     ))}
+                    </div>
+                    {totalResultados > resultados.length && (
+                      <p className="px-3 py-2 text-xs text-gray-400 bg-gray-50 border-t">
+                        {totalResultados} coincidencias, se muestran las primeras {resultados.length}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -233,13 +241,12 @@ const Consumo = () => {
                 )}
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={cantidad}
-                onChange={e => setCantidad(e.target.value)}
+                onChange={e => setCantidad(numeroDecimal(e.target.value))}
                 placeholder="0"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                min="0"
-                step="any"
               />
             </div>
 

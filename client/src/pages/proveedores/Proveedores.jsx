@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../../api/axios'
 import useFormValidacion from '../../utils/useFormValidacion'
+import { buscarTexto } from '../../utils/buscar'
 import { soloTexto, soloRucCi, soloTelefono, esEmail, limpiar } from '../../utils/validar'
 
 const valoresIniciales = { nombre: '', ruc: '', telefono: '', email: '' }
@@ -124,11 +125,11 @@ const Proveedores = () => {
   }
 }
 
-  const filtrados = proveedores.filter(p =>
-    p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-    p.ruc?.includes(busqueda) ||
-    p.telefono?.includes(busqueda)
-  )
+  const filtrados = buscarTexto(proveedores, busqueda, [
+    { campo: 'nombre', peso: 0 },
+    { campo: 'ruc', peso: -200 },
+    { campo: 'telefono', peso: -100 }
+  ])
 
   if (cargando) return (
     <div className="flex justify-center items-center h-64">

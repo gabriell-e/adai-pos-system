@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../api/axios'
+import { puntuarProducto } from '../../utils/buscar'
 
 const formatGs = n => `Gs. ${Number(n || 0).toLocaleString('es-PY')}`
 const toLocalDate = (d) => {
@@ -321,6 +322,21 @@ function InventarioTab({ cargando, setCargando, setErrorMsj }) {
     cargar()
   }, [])
 
+  // El servidor ya filtró con LIKE, así que acá solo se reordena con la misma
+  // prioridad del buscador de productos. Los que el helper no llega a puntuar
+  // quedan al final pero no se ocultan: si el servidor los trajo, se ven.
+  const productos = useMemo(() => {
+    const lista = data?.productos || []
+    if (!busquedaProd.trim()) return lista
+
+    const puntaje = p => {
+      const s = puntuarProducto(p, busquedaProd)
+      return s === null ? -Infinity : s
+    }
+    return [...lista].sort((a, b) =>
+      (puntaje(b) - puntaje(a)) || a.nombre.localeCompare(b.nombre, 'es'))
+  }, [data, busquedaProd])
+
   const exportar = () => {
     const p = new URLSearchParams()
     if (categoriaId) p.set('categoria_id', categoriaId)
@@ -382,7 +398,7 @@ function InventarioTab({ cargando, setCargando, setErrorMsj }) {
           <div className="p-8 text-center text-gray-400">Cargando...</div>
         ) : !data ? (
           <div className="p-8 text-center text-gray-400">Cargando inventario...</div>
-        ) : data.productos.length === 0 ? (
+        ) : productos.length === 0 ? (
           <div className="p-8 text-center text-gray-400">No hay productos</div>
         ) : (
           <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
@@ -401,7 +417,7 @@ function InventarioTab({ cargando, setCargando, setErrorMsj }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {data.productos.map(p => (
+                {productos.map(p => (
                   <tr key={p.id} className={`hover:bg-gray-50 ${p.stock <= p.stock_minimo ? 'bg-red-50' : ''}`}>
                     <td className="px-4 py-2.5">
                       <p className="font-medium text-gray-800">{p.nombre}</p>

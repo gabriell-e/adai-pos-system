@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
 import useFormValidacion from '../../utils/useFormValidacion'
+import { buscarTexto } from '../../utils/buscar'
 import { soloTexto, soloRucCi, soloTelefono, esEmail, limpiar } from '../../utils/validar'
 
 const valoresIniciales = { nombre: '', ruc_ci: '', telefono: '', email: '' }
@@ -119,11 +120,14 @@ const Clientes = () => {
   }
 
   const formatGs = n => `Gs. ${Number(n).toLocaleString('es-PY')}`
-  const filtrados = clientes.filter(c =>
-    c.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-    c.ruc_ci?.includes(busqueda) ||
-    c.telefono?.includes(busqueda)
-  )
+  // El nombre pesa más que el RUC o el teléfono: si se busca "4444444" tiene que
+  // salir el cliente con ese RUC, pero si se busca "jose" ganan los que empiezan
+  // con José, no el que lo tiene en el medio del nombre.
+  const filtrados = buscarTexto(clientes, busqueda, [
+    { campo: 'nombre', peso: 0 },
+    { campo: 'ruc_ci', peso: -200 },
+    { campo: 'telefono', peso: -100 }
+  ])
 
   if (cargando) return (
     <div className="flex justify-center items-center h-64">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../../api/axios'
 import useFormValidacion from '../../utils/useFormValidacion'
+import { buscarTexto } from '../../utils/buscar'
 import { soloTexto, limpiar } from '../../utils/validar'
 
 const valoresIniciales = { nombre: '' }
@@ -86,9 +87,7 @@ const Categorias = () => {
     }
   }
 
-  const filtrados = categorias.filter(c =>
-    c.nombre.toLowerCase().includes(busqueda.toLowerCase())
-  )
+  const filtrados = buscarTexto(categorias, busqueda, [{ campo: 'nombre', peso: 0 }])
 
   if (cargando) return (
     <div className="flex justify-center items-center h-64">

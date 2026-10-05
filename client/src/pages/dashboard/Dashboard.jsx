@@ -54,7 +54,8 @@ const Dashboard = () => {
   const [cajaActiva, setCajaActiva]   = useState(null)
   const [cargando, setCargando]       = useState(true)
 
-  const [periodo, setPeriodo]         = useState('7dias')
+  // El local pidió ver el mes en curso, no una ventana de días.
+  const [periodo, setPeriodo]         = useState('mes')
   const [graf, setGraf]               = useState(null)
   const [cargandoGraf, setCargandoGraf] = useState(true)
 
@@ -64,19 +65,22 @@ const Dashboard = () => {
   const [ordenVentas, setOrdenVentas] = useState('monto')
 
   const [consumosHoy, setConsumosHoy] = useState([])
+  const [gastosHoy, setGastosHoy]     = useState(0)
 
   useEffect(() => {
     const cargar = async () => {
-      const [ventasHoyRes, stockRes, cajaRes, consumoRes] = await Promise.all([
+      const [ventasHoyRes, stockRes, cajaRes, consumoRes, gastosRes] = await Promise.all([
         api.get('/ventas/hoy'),
         api.get('/productos/low-stock'),
         api.get('/caja/activa').catch(() => ({ data: null })),
-        api.get('/consumo').catch(() => ({ data: [] }))
+        api.get('/consumo').catch(() => ({ data: [] })),
+        api.get('/gastos/resumen').catch(() => ({ data: null }))
       ])
       setVentas(ventasHoyRes.data)
       setLowStock(stockRes.data)
       setCajaActiva(cajaRes.data)
       setConsumosHoy(consumoRes.data)
+      setGastosHoy(gastosRes.data?.hoy?.total || 0)
       setCargando(false)
     }
     cargar()
@@ -105,6 +109,17 @@ const Dashboard = () => {
   const consumoHoy = consumosHoy
     .filter(c => new Date(c.creado_en).toLocaleDateString('es-PY') === hoy)
     .reduce((acc, c) => acc + (c.cantidad * (c.producto_precio_compra || 0)), 0)
+
+  // Lo que realmente queda del día. La ganancia sola (ventas - costo de los
+  // productos) miente: el consumo propio y los gastos salen de la caja igual que
+  // una venta, así que se restan acá, igual que hace el resumen del período.
+  const resultadoHoy = gananciaNetaHoy - gastosHoy - consumoHoy
+
+  // Solo se mencionan los rubros que hubo, para no escribir "Gastos Gs. 0".
+  const formulaHoy = ['Ventas - Costos',
+    gastosHoy > 0 ? `Gastos ${formatGs(gastosHoy)}` : null,
+    consumoHoy > 0 ? `Consumo ${formatGs(consumoHoy)}` : null
+  ].filter(Boolean).join(' - ')
 
   // Desglose del día por medio de pago.
   //
@@ -260,9 +275,9 @@ const Dashboard = () => {
         <Stat label="Fiado pendiente" valor={formatGs(fiadoPendiente)} sub={`${ventasFiado.length} ventas sin cobrar`} color={fiadoPendiente > 0 ? 'text-amber-600' : 'text-gray-800'} />
         <Stat
           label="Ganancia neta hoy"
-          valor={formatGs(gananciaNetaHoy)}
-          sub={consumoHoy > 0 ? `Ventas - Costos - Consumo ${formatGs(consumoHoy)}` : 'Ventas - Costos'}
-          color={gananciaNetaHoy >= 0 ? 'text-emerald-600' : 'text-red-600'}
+          valor={formatGs(resultadoHoy)}
+          sub={formulaHoy}
+          color={resultadoHoy >= 0 ? 'text-emerald-600' : 'text-red-600'}
         />
       </div>
 

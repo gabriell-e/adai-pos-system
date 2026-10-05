@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
+import { numeroDecimal } from '../../utils/validar'
 
 const formatGs    = n => `Gs. ${Number(n).toLocaleString('es-PY')}`
 const formatFecha = f => new Date(f).toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' })
@@ -118,12 +119,12 @@ const Caja = () => {
                 <p className="text-sm font-medium text-gray-700 mb-2">Monto final contado (Gs.)</p>
                 <div className="flex gap-3">
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={montoFinal}
-                    onChange={e => setMontoFinal(e.target.value)}
+                    onChange={e => setMontoFinal(numeroDecimal(e.target.value))}
                     placeholder="Ej: 250000"
                     className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    min="0"
                   />
                   <button
                     onClick={cerrar}
@@ -143,12 +144,12 @@ const Caja = () => {
               <p className="text-sm font-medium text-gray-700 mb-2">Monto inicial (Gs.)</p>
               <div className="flex gap-3">
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   value={montoInicial}
-                  onChange={e => setMontoInicial(e.target.value)}
+                  onChange={e => setMontoInicial(numeroDecimal(e.target.value))}
                   placeholder="Ej: 100000"
                   className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  min="0"
                 />
                 <button
                   onClick={abrir}

@@ -1,4 +1,5 @@
 const { db } = require('../db')
+const { normalizarTexto } = require('../utils/texto')
 const XLSX = require('xlsx')
 
 const formatGs = n => Number(n || 0)
@@ -37,9 +38,12 @@ const inventario = (req, res) => {
       sql += ' AND p.categoria_id = ?'
       params.push(Number(categoria_id))
     }
-    if (busqueda) {
-      sql += ' AND (p.nombre LIKE ? OR p.codigo_barras LIKE ?)'
-      params.push(`%${busqueda}%`, `%${busqueda}%`)
+    if (busqueda && busqueda.trim()) {
+      // norm() quita acentos dentro de SQL. Sin esto el LIKE de SQLite solo
+      // distingue mayúsculas, y "jabon" no encuentra "Jabón".
+      const q = normalizarTexto(busqueda)
+      sql += ' AND (norm(p.nombre) LIKE ? OR norm(p.codigo_barras) LIKE ?)'
+      params.push(`%${q}%`, `%${q}%`)
     }
     if (solo_stock_bajo === '1') {
       sql += ' AND p.stock <= p.stock_minimo AND p.activo = 1'
@@ -106,9 +110,12 @@ const inventarioExcel = (req, res) => {
       sql += ' AND p.categoria_id = ?'
       params.push(Number(categoria_id))
     }
-    if (busqueda) {
-      sql += ' AND (p.nombre LIKE ? OR p.codigo_barras LIKE ?)'
-      params.push(`%${busqueda}%`, `%${busqueda}%`)
+    if (busqueda && busqueda.trim()) {
+      // norm() quita acentos dentro de SQL. Sin esto el LIKE de SQLite solo
+      // distingue mayúsculas, y "jabon" no encuentra "Jabón".
+      const q = normalizarTexto(busqueda)
+      sql += ' AND (norm(p.nombre) LIKE ? OR norm(p.codigo_barras) LIKE ?)'
+      params.push(`%${q}%`, `%${q}%`)
     }
     if (solo_stock_bajo === '1') {
       sql += ' AND p.stock <= p.stock_minimo AND p.activo = 1'

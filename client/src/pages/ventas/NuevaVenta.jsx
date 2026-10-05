@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
 import { buscarProductos } from '../../utils/buscar'
+import { numeroDecimal } from '../../utils/validar'
 
 const formatGs = n => `Gs. ${Number(n).toLocaleString('es-PY')}`
 
@@ -232,7 +233,11 @@ const NuevaVenta = () => {
       setCantidades(prev => ({ ...prev, [key]: String(item.cantidad) }))
       return
     }
-    const num = esUnidadPeso(item.unidad) ? parseFloat(raw) : parseInt(raw, 10)
+    // numeroDecimal antes de parseFloat: "2,5" con parseFloat solo da 2,
+    // porque la coma no es separador decimal en JavaScript.
+    const num = esUnidadPeso(item.unidad)
+      ? parseFloat(numeroDecimal(raw))
+      : parseInt(raw, 10)
     if (isNaN(num) || num <= 0) {
       setError(`"${item.nombre}": la cantidad debe ser mayor a 0`)
       setCantidades(prev => ({ ...prev, [key]: String(item.cantidad) }))
@@ -684,12 +689,12 @@ const NuevaVenta = () => {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Monto recibido</label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={montoPagado}
-                onChange={e => setMontoPagado(e.target.value)}
+                onChange={e => setMontoPagado(numeroDecimal(e.target.value))}
                 placeholder={String(totalFinal)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                min="0"
               />
             </div>
           )}
@@ -728,13 +733,13 @@ const NuevaVenta = () => {
                   </select>
                   <input
                     ref={pagoMontoRef}
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={nuevoPagoMonto}
-                    onChange={e => setNuevoPagoMonto(e.target.value)}
+                    onChange={e => setNuevoPagoMonto(numeroDecimal(e.target.value))}
                     onKeyDown={handlePagoMontoKeyDown}
                     placeholder={faltanteMixto > 0 ? String(Math.round(faltanteMixto)) : '0'}
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    min="0" />
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
                   <button
                     type="button"
                     onClick={() => agregarPagoMixto(nuevoPagoMonto)}
@@ -764,11 +769,11 @@ const NuevaVenta = () => {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Descuento (Gs.)</label>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={descuento}
-              onChange={e => setDescuento(e.target.value)}
+              onChange={e => setDescuento(numeroDecimal(e.target.value))}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              min="0"
             />
           </div>
         </div>

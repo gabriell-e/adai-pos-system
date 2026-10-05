@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
+import { numeroDecimal } from '../../utils/validar'
 
 const formatGs    = n => `Gs. ${Number(n || 0).toLocaleString('es-PY')}`
 const formatFecha = f => new Date(f).toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' })
@@ -254,10 +255,11 @@ const Gastos = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Monto (Gs.) *</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   placeholder="0"
                   value={form.monto}
-                  onChange={e => setForm(f => ({ ...f, monto: e.target.value }))}
+                  onChange={e => setForm(f => ({ ...f, monto: numeroDecimal(e.target.value) }))}
                   onKeyDown={e => e.key === 'Enter' && guardar()}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   min="1"

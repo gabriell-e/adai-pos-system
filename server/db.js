@@ -1,11 +1,19 @@
 const Database = require('better-sqlite3')
 const path = require('path')
+const { normalizarSql } = require('./utils/texto')
 
 const db = new Database(path.join(__dirname, 'adai.db'))
 
 // Rendimiento y consistencia
 db.pragma('journal_mode = WAL')
 db.pragma('foreign_keys = ON')
+
+// norm(texto) quita acentos y baja a minúsculas dentro de SQL.
+//
+// SQLite no lo hace solo: su LIKE solo ignora mayúsculas y minúsculas de la
+// ASCII, no los acentos, así que "jose" nunca encontraba "José". Con esta
+// función los buscadores del servidor se comportan como los del cliente.
+db.function('norm', { deterministic: true }, normalizarSql)
 
 const init = () => {
   db.exec(`

@@ -85,3 +85,65 @@ export const buscarProductos = (productos, consulta, limite = null) => {
   const lista = conPuntaje.map(x => x.p)
   return limite ? lista.slice(0, limite) : lista
 }
+
+/**
+ * Lo mismo que puntuarProducto, pero para cualquier otra cosa (clientes,
+ * proveedores, categorías). Busca en los campos que se le pasen en vez de
+ * nombre y código, y usa la misma escalera de prioridades.
+ *
+ * Se agregó porque los buscadores de esas pantallas filtraban con un
+ * includes() a secas: no entendían acentos ("jose" no encontraba "José") y
+ * dejaban el orden en que venía la lista.
+ *
+ * @param {object} item
+ * @param {string} consulta
+ * @param {Array<{ campo: string, peso: number }>} campos  peso menor = mejor
+ */
+export const puntuarTexto = (item, consulta, campos) => {
+  const q = normalizar(consulta).trim()
+  if (!q) return null
+
+  const terminos = q.split(/\s+/).filter(Boolean)
+
+  for (const { campo, peso } of campos) {
+    const valor = normalizar(item[campo])
+    if (!valor) continue
+    if (!terminos.every(t => valor.includes(t))) continue
+
+    // Todos los términos juntos y en orden = lo que el usuario escribió
+    if (valor === q) return peso - 0
+
+    const largo = Math.min(90, valor.length)
+    const sigueEnPalabra = valor.length === q.length || /[\s\-/_(]/.test(valor[q.length])
+
+    if (valor.startsWith(q) && sigueEnPalabra)       return peso + PRIORIDAD.empieza - largo
+    if (terminos.some(t => EMPIEZA_PALABRA(t).test(valor))) return peso + PRIORIDAD.empiezaTerm - largo
+    if (terminos.some(t => ES_PALABRA(t).test(valor)))      return peso + PRIORIDAD.palabra - largo
+    return peso + PRIORIDAD.pegado - largo
+  }
+
+  return null
+}
+
+/**
+ * Filtra y ordena cualquier lista usando puntuarTexto.
+ * @param {Array}   items
+ * @param {string}  consulta
+ * @param {Array}   campos   [{ campo, peso }], en orden de preferencia
+ * @param {Function} etiqueta  para desempate alfabético (por defecto, nombre)
+ */
+export const buscarTexto = (items, consulta, campos, etiqueta = i => i.nombre) => {
+  const q = normalizar(consulta).trim()
+  if (!q) return items
+
+  const conPuntaje = []
+  for (const item of items) {
+    const puntaje = puntuarTexto(item, consulta, campos)
+    if (puntaje !== null) conPuntaje.push({ item, puntaje })
+  }
+
+  conPuntaje.sort((a, b) =>
+    (b.puntaje - a.puntaje) || String(etiqueta(a.item)).localeCompare(String(etiqueta(b.item)), 'es'))
+
+  return conPuntaje.map(x => x.item)
+}
