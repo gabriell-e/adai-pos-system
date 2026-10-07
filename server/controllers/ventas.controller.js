@@ -329,6 +329,18 @@ const crear = (req, res) => {
         }
       })
 
+      // Calcular reparto mixto (para saber cuánto quedó fiado/pagado)
+      let pagadoTotalMixto = 0
+      let fiadoTotalMixto  = 0
+      if (tipo_pago === 'mixto' && Array.isArray(pago_detalle)) {
+        for (const p of pago_detalle) {
+          const m = Number(p.monto) || 0
+          if (m <= 0) continue
+          if (p.tipo === 'fiado') fiadoTotalMixto += m
+          else pagadoTotalMixto += m
+        }
+      }
+
       // 3. Total final
       const descuentoAplicado = descuento || 0
       const total  = totalBruto - descuentoAplicado
@@ -356,7 +368,7 @@ const crear = (req, res) => {
         iva_5,
         descuentoAplicado,
         total,
-        monto_pagado || 0,
+        tipo_pago === 'mixto' ? pagadoTotalMixto : (Number(monto_pagado) || total),
         vuelto,
         orden_nro || null,
         pago_detalle ? JSON.stringify(pago_detalle) : null,
@@ -389,10 +401,18 @@ const crear = (req, res) => {
         stmtMovimiento.run(item.producto_id, usuario_id, unidadesBase, venta_id, ahora())
       }
 
-      // 6. Si es fiado, actualizar deuda del cliente
-      if (tipo_pago === 'fiado' && cliente_id) {
-        db.prepare('UPDATE clientes SET deuda_total = deuda_total + ? WHERE id = ?')
-          .run(total, cliente_id)
+      // 6. Si queda saldo fiado, actualizar deuda del cliente
+      if (cliente_id) {
+        let deudaAgregar = 0
+        if (tipo_pago === 'fiado') {
+          deudaAgregar = total
+        } else if (tipo_pago === 'mixto') {
+          deudaAgregar = fiadoTotalMixto
+        }
+        if (deudaAgregar > 0) {
+          db.prepare('UPDATE clientes SET deuda_total = deuda_total + ? WHERE id = ?')
+            .run(deudaAgregar, cliente_id)
+        }
       }
 
       return { venta_id, numero_factura, total, vuelto, iva_10, iva_5 }
@@ -411,20 +431,38 @@ const cobrar = (req, res) => {
   try {
     const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(req.params.id)
     if (!venta) return res.status(404).json({ error: 'Venta no encontrada' })
-    if (venta.tipo_pago !== 'fiado')
-      return res.status(400).json({ error: 'Solo se puede cobrar ventas fiadas' })
-    if (venta.fiado_pagada)
-      return res.status(409).json({ error: 'Esta venta fiada ya fue cobrada' })
     if (venta.estado === 'anulada')
       return res.status(400).json({ error: 'La venta está anulada' })
+    if (venta.fiado_pagada)
+      return res.status(409).json({ error: 'Esta venta fiada ya fue cobrada' })
+
+    // Calcular saldo pendiente
+    let saldoPendiente = 0
+    if (venta.tipo_pago === 'fiado') {
+      saldoPendiente = venta.total
+    } else if (venta.tipo_pago === 'mixto' && venta.pago_detalle) {
+      let fiado = 0, pagado = 0
+      try {
+        const d = JSON.parse(venta.pago_detalle)
+        for (const p of d) {
+          const m = Number(p.monto) || 0
+          if (m <= 0) continue
+          if (p.tipo === 'fiado') fiado += m
+          else pagado += m
+        }
+      } catch (_) {}
+      saldoPendiente = fiado
+    }
+
+    if (saldoPendiente <= 0)
+      return res.status(400).json({ error: 'Esta venta no tiene saldo fiado pendiente' })
 
     const cobrarFiado = db.transaction(() => {
       db.prepare('UPDATE ventas SET fiado_pagada = 1, cobrado_en = ? WHERE id = ?')
         .run(ahora(), req.params.id)
-
-      if (venta.cliente_id) {
+      if (venta.cliente_id && saldoPendiente > 0) {
         db.prepare('UPDATE clientes SET deuda_total = deuda_total - ? WHERE id = ?')
-          .run(venta.total, venta.cliente_id)
+          .run(saldoPendiente, venta.cliente_id)
       }
     })
 
@@ -464,10 +502,24 @@ const anular = (req, res) => {
         stmtMovimiento.run(item.producto_id, venta.usuario_id, unidadesBase, venta.id, ahora())
       }
 
-      // Si era fiada, revertir deuda
-      if (venta.tipo_pago === 'fiado' && venta.cliente_id) {
-        db.prepare('UPDATE clientes SET deuda_total = deuda_total - ? WHERE id = ?')
-          .run(venta.total, venta.cliente_id)
+      // Si había saldo fiado pendiente, revertir deuda
+      if (venta.cliente_id && !venta.fiado_pagada) {
+        let deudaRevertir = 0
+        if (venta.tipo_pago === 'fiado') {
+          deudaRevertir = venta.total
+        } else if (venta.tipo_pago === 'mixto' && venta.pago_detalle) {
+          try {
+            const d = JSON.parse(venta.pago_detalle)
+            for (const p of d) {
+              const m = Number(p.monto) || 0
+              if (m > 0 && p.tipo === 'fiado') deudaRevertir += m
+            }
+          } catch (_) {}
+        }
+        if (deudaRevertir > 0) {
+          db.prepare('UPDATE clientes SET deuda_total = deuda_total - ? WHERE id = ?')
+            .run(deudaRevertir, venta.cliente_id)
+        }
       }
 
       db.prepare('UPDATE ventas SET estado = ? WHERE id = ?').run('anulada', req.params.id)

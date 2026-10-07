@@ -329,6 +329,7 @@ const NuevaVenta = () => {
   // Pago mixto helpers
   const totalMixtoPagado = pagoDetalle.reduce((a, p) => a + p.monto, 0)
   const faltanteMixto    = totalFinal - totalMixtoPagado
+  const fiadoMixto       = pagoDetalle.filter(p => p.tipo === 'fiado').reduce((a, p) => a + p.monto, 0)
 
   const agregarPagoMixto = (montoAUsar, tipoAUsar) => {
     const monto = Math.round(Number(montoAUsar))
@@ -720,6 +721,25 @@ const NuevaVenta = () => {
                         </div>
                       </div>
                     ))}
+
+                    {(totalMixtoPagado > 0 || fiadoMixto > 0) && (
+                      <div className="mt-1 space-y-0.5 border-t pt-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500">Pagado</span>
+                          <span className="font-medium text-emerald-700">{formatGs(totalMixtoPagado - fiadoMixto)}</span>
+                        </div>
+                        {fiadoMixto > 0 && (
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-500">Fiado</span>
+                            <span className="font-medium text-amber-600">{formatGs(fiadoMixto)}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500">Total repartido</span>
+                          <span className="font-medium text-gray-700">{formatGs(totalMixtoPagado)}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
