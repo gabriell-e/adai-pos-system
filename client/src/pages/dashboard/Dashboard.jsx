@@ -121,6 +121,27 @@ const Dashboard = () => {
     consumoHoy > 0 ? `Consumo ${formatGs(consumoHoy)}` : null
   ].filter(Boolean).join(' - ')
 
+  // Desglose visual de la ganancia neta del día, igual que "Cobrado hoy por medio"
+  const gananciaDetalle = (() => {
+    const vCosto = gananciaNetaHoy  // ventas - costo
+    const gastos  = gastosHoy
+    const consumo = consumoHoy
+    const lineas  = []
+
+    if (vCosto !== 0) {
+      lineas.push({ clave: 'vcosto', etiqueta: 'Ventas - Costos', monto: vCosto, clase: vCosto >= 0 ? 'text-emerald-600' : 'text-red-600' })
+    }
+    if (gastos > 0) {
+      lineas.push({ clave: 'gastos', etiqueta: 'Gastos', monto: -gastos, clase: 'text-red-600' })
+    }
+    if (consumo > 0) {
+      lineas.push({ clave: 'consumo', etiqueta: 'Consumo propio', monto: -consumo, clase: 'text-red-600' })
+    }
+
+    const total = vCosto - gastos - consumo
+    return { lineas, total }
+  })()
+
   // Desglose del día por medio de pago.
   //
   // Las ventas mixtas guardan el reparto en pago_detalle, que viene como texto
