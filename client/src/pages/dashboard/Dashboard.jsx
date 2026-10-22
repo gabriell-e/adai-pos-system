@@ -25,14 +25,18 @@ const Stat = ({ label, valor, sub, color = 'text-gray-800', grande = false }) =>
 //
 // "Otros" solo aparece si hay algo: las ventas pueden pagarse con QR, débito o
 // tarjeta, y si se omitieran el total de abajo no cerraría con "Ventas hoy".
-const StatPagos = ({ lineas, total }) => {
-  const conDatos = lineas.filter(l => l.monto > 0)
+//
+// El mismo cuadro se reutiliza para la ganancia neta: cambian los rubros y la
+// cuenta. Ahí las líneas que se restan van en negativo, para que se vea la
+// cuenta completa y no solo el resultado.
+const StatDesglose = ({ titulo, lineas, total, vacio = 'Sin datos', totalClase = 'text-gray-800' }) => {
+  const conDatos = lineas.filter(l => l.monto !== 0)
   return (
     <div className="bg-white rounded-xl shadow-sm p-5">
-      <p className="text-sm text-gray-500 mb-2">Cobrado hoy por medio</p>
+      <p className="text-sm text-gray-500 mb-2">{titulo}</p>
       <div className="space-y-1">
         {conDatos.length === 0 ? (
-          <p className="text-sm text-gray-400">Sin ventas hoy</p>
+          <p className="text-sm text-gray-400">{vacio}</p>
         ) : conDatos.map(l => (
           <div key={l.clave} className="flex items-center justify-between text-sm">
             <span className="text-gray-600">{l.etiqueta}</span>
@@ -42,11 +46,20 @@ const StatPagos = ({ lineas, total }) => {
       </div>
       <div className="flex items-center justify-between border-t mt-2 pt-2">
         <span className="text-sm text-gray-500">Total</span>
-        <span className="font-bold text-gray-800">{formatGs(total)}</span>
+        <span className={`font-bold ${totalClase}`}>{formatGs(total)}</span>
       </div>
     </div>
   )
 }
+
+const StatPagos = ({ lineas, total }) => (
+  <StatDesglose
+    titulo="Cobrado hoy por medio"
+    lineas={lineas}
+    total={total}
+    vacio="Sin ventas hoy"
+  />
+)
 
 const Dashboard = () => {
   const [ventas, setVentas]           = useState([])
@@ -102,7 +115,8 @@ const Dashboard = () => {
   const totalHoy    = ventasHoy.reduce((acc, v) => acc + v.total, 0)
   const ventasFiado = ventasHoy.filter(v => v.tipo_pago === 'fiado' && !v.fiado_pagada)
   const fiadoPendiente = ventasFiado.reduce((acc, v) => acc + v.total, 0)
-  const gananciaNetaHoy = ventasHoy.reduce((acc, v) => acc + (v.total - (v.costo_total || 0)), 0)
+  const costoTotalHoy  = ventasHoy.reduce((acc, v) => acc + (v.costo_total || 0), 0)
+  const gananciaNetaHoy = totalHoy - costoTotalHoy
 
   // Consumo propio de hoy, a precio de compra (que es lo que sale de la caja).
   // El endpoint devuelve producto_precio_compra junto con la cantidad.
@@ -115,32 +129,21 @@ const Dashboard = () => {
   // una venta, así que se restan acá, igual que hace el resumen del período.
   const resultadoHoy = gananciaNetaHoy - gastosHoy - consumoHoy
 
-  // Solo se mencionan los rubros que hubo, para no escribir "Gastos Gs. 0".
-  const formulaHoy = ['Ventas - Costos',
-    gastosHoy > 0 ? `Gastos ${formatGs(gastosHoy)}` : null,
-    consumoHoy > 0 ? `Consumo ${formatGs(consumoHoy)}` : null
-  ].filter(Boolean).join(' - ')
-
-  // Desglose visual de la ganancia neta del día, igual que "Cobrado hoy por medio"
-  const gananciaDetalle = (() => {
-    const vCosto = gananciaNetaHoy  // ventas - costo
-    const gastos  = gastosHoy
-    const consumo = consumoHoy
-    const lineas  = []
-
-    if (vCosto !== 0) {
-      lineas.push({ clave: 'vcosto', etiqueta: 'Ventas - Costos', monto: vCosto, clase: vCosto >= 0 ? 'text-emerald-600' : 'text-red-600' })
-    }
-    if (gastos > 0) {
-      lineas.push({ clave: 'gastos', etiqueta: 'Gastos', monto: -gastos, clase: 'text-red-600' })
-    }
-    if (consumo > 0) {
-      lineas.push({ clave: 'consumo', etiqueta: 'Consumo propio', monto: -consumo, clase: 'text-red-600' })
-    }
-
-    const total = vCosto - gastos - consumo
-    return { lineas, total }
-  })()
+  // Desglose visual de la ganancia neta, con la misma cuenta del cuadro
+  // "Cobrado hoy por medio" pero al revés: lo que entra arriba, lo que sale
+  // abajo en negativo, y el resultado al pie.
+  //
+  //   Ventas           1.000.000
+  //   (-) Costos        400.000
+  //   (-) Gastos         50.000
+  //   (-) Consumo        20.000
+  //   Total             530.000
+  const gananciaLineas = [
+    { clave: 'ventas',  etiqueta: 'Ventas',          monto: totalHoy,       clase: 'text-emerald-600' },
+    { clave: 'costos',  etiqueta: '(-) Costos',       monto: -costoTotalHoy, clase: 'text-red-600' },
+    { clave: 'gastos',  etiqueta: '(-) Gastos',       monto: -gastosHoy,    clase: 'text-red-600' },
+    { clave: 'consumo', etiqueta: '(-) Consumo propio', monto: -consumoHoy, clase: 'text-red-600' }
+  ]
 
   // Desglose del día por medio de pago.
   //
@@ -294,11 +297,12 @@ const Dashboard = () => {
           total={pagosTotal}
         />
         <Stat label="Fiado pendiente" valor={formatGs(fiadoPendiente)} sub={`${ventasFiado.length} ventas sin cobrar`} color={fiadoPendiente > 0 ? 'text-amber-600' : 'text-gray-800'} />
-        <Stat
-          label="Ganancia neta hoy"
-          valor={formatGs(resultadoHoy)}
-          sub={formulaHoy}
-          color={resultadoHoy >= 0 ? 'text-emerald-600' : 'text-red-600'}
+        <StatDesglose
+          titulo="Ganancia neta hoy"
+          lineas={gananciaLineas}
+          total={resultadoHoy}
+          vacio="Sin ventas hoy"
+          totalClase={resultadoHoy >= 0 ? 'text-emerald-600' : 'text-red-600'}
         />
       </div>
 
