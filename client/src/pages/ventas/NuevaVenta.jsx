@@ -397,6 +397,8 @@ const NuevaVenta = () => {
       return setError('El monto recibido es menor al total')
     if (tipoPago === 'mixto' && totalMixtoPagado < totalFinal)
       return setError(`Faltan ${formatGs(totalFinal - totalMixtoPagado)} para completar el total`)
+    if (tipoPago === 'mixto' && fiadoMixto > 0 && !clienteSeleccionado)
+      return setError('Venta mixta con fiado requiere un cliente')
 
     for (const item of carrito) {
       if (item.cantidad <= 0) {
@@ -750,6 +752,7 @@ const NuevaVenta = () => {
                     <option value="transferencia">Transferencia</option>
                     <option value="qr">QR</option>
                     <option value="debito">Débito</option>
+                    <option value="fiado">Fiado</option>
                   </select>
                   <input
                     ref={pagoMontoRef}
@@ -775,12 +778,13 @@ const NuevaVenta = () => {
                     onClick={completarConResto}
                     className="w-full text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg py-2 transition-colors"
                   >
-                    Completar con {formatGs(faltanteMixto)} en {nuevoPagoTipo}
+                    Completar con {formatGs(faltanteMixto)} en {nuevoPagoTipo === 'fiado' ? 'fiado' : nuevoPagoTipo}
                   </button>
                 )}
 
                 <div className="flex justify-between text-xs text-gray-500">
-                  <span>Pagado: <span className="font-medium text-emerald-600">{formatGs(totalMixtoPagado)}</span></span>
+                  <span>Pagado: <span className="font-medium text-emerald-600">{formatGs(totalMixtoPagado - fiadoMixto)}</span></span>
+                  <span>Fiado: <span className="font-medium text-amber-600">{formatGs(fiadoMixto)}</span></span>
                   <span>Falta: <span className={`font-medium ${faltanteMixto > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{formatGs(Math.max(0, faltanteMixto))}</span></span>
                 </div>
               </div>

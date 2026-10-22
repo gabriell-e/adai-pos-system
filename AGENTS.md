@@ -11,11 +11,13 @@ hay que respetar estas reglas al usar la terminal:
    el proceso termine y se cuelga hasta el timeout.
 
    ```powershell
-   # Correcto: desligado, con log a archivo, y NO esperar
-   Start-Process node -ArgumentList "index.js" -WorkingDirectory "<repo>\server" `
-     -WindowStyle Hidden -RedirectStandardOutput "$env:TEMP\srv.log" `
-     -RedirectStandardError "$env:TEMP\srv.err" -PassThru
+   & { Get-Process node -EA SilentlyContinue | Stop-Process -Force -EA SilentlyContinue; Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = 'cmd.exe /c node index.js > %TEMP%\srv.log 2>&1'; CurrentDirectory = 'C:\Users\mosta\Desktop\Adai\adai-pos-system\server' } | Out-Null; Start-Sleep -Milliseconds 800; $tcp = New-Object System.Net.Sockets.TcpClient; $res = "no"; try { $tcp.Connect("127.0.0.1", 3001); $res = "3001 ok"; $tcp.Close() } catch {}; $tcp.Dispose(); $res } 2>&1 | Select-Object -Last 1
    ```
+
+   Usar siempre `Win32_Process.Create` desacopla el proceso del runner, corta la herencia
+   de handles y evita que la herramienta se quede colgada. **NO** usar `Start-Process`
+   con redirección a archivos ni `Invoke-WebRequest` para verificar el arranque: usar
+   el socket TCP directo con `$tcp.Dispose()` y liberar la conexión.
 
 2. **Nunca usar `-Wait`, `WaitForExit()` ni `Start-Sleep` largos después de
    arrancar algo.** Para comprobar que arrancó: una sola petición HTTP con

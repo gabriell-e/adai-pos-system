@@ -1,14 +1,44 @@
 const { db } = require('../db')
 const { ahora } = require('../utils/fecha')
 
+// Deuda pendiente de un cliente.
+//
+// Son dos cosas distintas y hay que sumarlas:
+//   1. Ventas totalmente fiadas (tipo_pago = 'fiado'): debe todo el total.
+//   2. Ventas mixtas con una parte fiada: solo lo que quedo en el reparto como
+//      'fiado'. El resto del pago_detalle ya se cobro y no es deuda.
+//
+// La consulta anterior solo miraba condicion_venta = 'credito', asi que las
+// ventas mixtas no contaban y la deuda de esos clientes aparecia en 0. Ademas
+// contaba las ventas anuladas, que ya no son deuda de nadie.
+//
+// El fiado de las mixtas sale de pago_detalle, que es texto JSON. Se usa
+// json_extract sobre el valor de cada elemento: el CAST a REAL de j.value
+// daria 0 porque ahi va el objeto entero serializado, no el numero.
+const DEUDA_CLIENTE = `
+  COALESCE((
+    SELECT SUM(v.total) FROM ventas v
+    WHERE v.cliente_id = c.id
+      AND v.tipo_pago = 'fiado'
+      AND v.fiado_pagada = 0
+      AND v.estado = 'completada'
+  ), 0) + COALESCE((
+    SELECT SUM(json_extract(j.value, '$.monto'))
+    FROM ventas v, json_each(v.pago_detalle) j
+    WHERE v.cliente_id = c.id
+      AND v.tipo_pago = 'mixto'
+      AND v.fiado_pagada = 0
+      AND v.estado = 'completada'
+      AND v.pago_detalle IS NOT NULL
+      AND json_extract(j.value, '$.tipo') = 'fiado'
+  ), 0)
+`
+
 const getAll = (req, res) => {
   try {
     const clientes = db.prepare(`
       SELECT c.*,
-        COALESCE((
-          SELECT SUM(v.total) FROM ventas v
-          WHERE v.cliente_id = c.id AND v.condicion_venta = 'credito' AND v.fiado_pagada = 0
-        ), 0) AS deuda_total
+        ${DEUDA_CLIENTE} AS deuda_total
       FROM clientes c
       ORDER BY c.nombre
     `).all()
@@ -20,7 +50,11 @@ const getAll = (req, res) => {
 
 const getById = (req, res) => {
   try {
-    const cliente = db.prepare('SELECT * FROM clientes WHERE id = ?').get(req.params.id)
+    const cliente = db.prepare(`
+      SELECT c.*, ${DEUDA_CLIENTE} AS deuda_total
+      FROM clientes c
+      WHERE c.id = ?
+    `).get(req.params.id)
     if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' })
     res.json(cliente)
   } catch (err) {
@@ -30,11 +64,36 @@ const getById = (req, res) => {
 
 const getHistorial = (req, res) => {
   try {
+    // Incluye las ventas mixtas que quedaron con saldo fiado, que antes no
+    // aparecian porque solo se buscaban las de condicion_venta = 'credito'.
     const ventas = db.prepare(`
       SELECT v.id, v.numero_factura, v.total, v.tipo_pago,
-             v.condicion_venta, v.estado, v.fiado_pagada, v.creado_en
+             v.condicion_venta, v.estado, v.fiado_pagada, v.creado_en,
+             v.pago_detalle,
+             CASE
+               WHEN v.tipo_pago = 'fiado' AND v.fiado_pagada = 0 AND v.estado = 'completada'
+                 THEN v.total
+               WHEN v.tipo_pago = 'mixto' AND v.fiado_pagada = 0 AND v.estado = 'completada'
+                 THEN COALESCE((
+                   SELECT SUM(json_extract(j.value, '$.monto'))
+                   FROM json_each(v.pago_detalle) j
+                   WHERE json_extract(j.value, '$.tipo') = 'fiado'
+                 ), 0)
+               ELSE 0
+             END AS monto_fiado
       FROM ventas v
-      WHERE v.cliente_id = ? AND v.condicion_venta = 'credito'
+      WHERE v.cliente_id = ?
+        AND (
+          (v.tipo_pago = 'fiado' AND v.fiado_pagada = 0)
+          OR (
+            v.tipo_pago = 'mixto' AND v.fiado_pagada = 0
+            AND v.pago_detalle IS NOT NULL
+            AND EXISTS (
+              SELECT 1 FROM json_each(v.pago_detalle) j
+              WHERE json_extract(j.value, '$.tipo') = 'fiado'
+            )
+          )
+        )
       ORDER BY v.creado_en DESC
     `).all(req.params.id)
     res.json(ventas)
